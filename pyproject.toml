@@ -1,0 +1,45 @@
+[project]
+name = "shopbot-agent"
+version = "0.1.0"
+description = "ShopBot AI agent backend (LangGraph + MCP + FastAPI)"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi==0.161.1",
+    "uvicorn[standard]==0.54.0",
+    "pydantic-settings==2.16.1",
+    "langgraph==1.2.16",
+    "langgraph-checkpoint-postgres==3.2.0",
+    "langchain-openai==1.7.2",
+    "langchain-mcp-adapters==0.3.2",
+    # mcp 2.x đang xung đột với langchain-mcp-adapters
+    "mcp==1.30.0",
+    "psycopg[binary,pool]==3.3.6",
+    "pyjwt==2.15.1",
+    "argon2-cffi==25.1.0",
+    "cryptography==50.0.2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest==9.0.3",
+    "pytest-asyncio==1.4.0",
+    "httpx==0.28.1",
+    "pip-audit==2.10.1",
+    "ruff==0.17.2",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["backend/tests"]
+pythonpath = ["backend"]
+
+[tool.ruff]
+line-length = 120
+extend-exclude = ["frontend"]
+
+[tool.ruff.lint]
+# Mức tối thiểu: lỗi cú pháp, tên chưa định nghĩa, import thừa. Siết dần khi codebase lớn lên.
+select = ["E9", "F"]

@@ -1,0 +1,292 @@
+openapi: 3.1.0
+info:
+  title: ShopMobile API (hợp đồng v0 - đóng băng ở M0)
+  version: 0.1.0
+  description: |
+    Hợp đồng đóng băng ở mốc M0 (Plan A phase 1) để frontend dùng mock song song với backend.
+    Chỉ thay đổi có chủ đích và ghi vào project-changelog. Nguồn: plans/261023-1010-.../phase-04, 05, 07.
+    Quy ước: mọi endpoint cần JWT (Authorization: Bearer) trừ catalog và /health.
+    PHẠM VI v0: chỉ Plan A (auth, catalog, chat, hoàn tiền, phiếu, thông báo, bộ nhớ, staff hoàn tiền/phiếu).
+    Endpoint của Plan B (checkout, orders, payments, staff orders/payments) thêm ở v0.2 TRƯỚC khi bắt đầu M2.
+    Phân trang: danh sách mới trả {items, next_cursor} với ?cursor&limit (mặc định 20, tối đa 100);
+    ngoại lệ có chủ đích: /v1/products (mảng, tương thích frontend hiện tại).
+    Cookie: refresh token ở cookie HttpOnly; /v1/auth/refresh và /v1/auth/logout dùng cookie (không bearer),
+    bắt buộc header X-Requested-With: shopmobile và kiểm tra Origin (chống CSRF).
+    Lỗi: {code, message, request_id}. Chat: câu trả lời cuối chỉ hiện sau khi qua guard (không có sự kiện token).
+servers:
+  - url: /api
+tags:
+  - {name: auth}
+  - {name: catalog}
+  - {name: chat}
+  - {name: me}
+  - {name: refunds}
+  - {name: staff}
+security:
+  - bearer: []
+paths:
+  /health:
+    get: {tags: [catalog], security: [], summary: Liveness, responses: {"200": {description: ok}}}
+  /v1/products:
+    get:
+      tags: [catalog]
+      security: []
+      parameters:
+        - {name: q, in: query, schema: {type: string}}
+        - {name: category, in: query, schema: {type: string}}
+        - {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 50, default: 20}}
+      responses: {"200": {description: Danh sách sản phẩm, content: {application/json: {schema: {type: array, items: {$ref: "#/components/schemas/Product"}}}}}}
+  /v1/products/{slug}:
+    get:
+      tags: [catalog]
+      security: []
+      parameters: [{name: slug, in: path, required: true, schema: {type: string}}]
+      responses:
+        "200": {description: Chi tiết, content: {application/json: {schema: {$ref: "#/components/schemas/Product"}}}}
+        "404": {$ref: "#/components/responses/Error"}
+  /v1/auth/register:
+    post:
+      tags: [auth]
+      security: []
+      summary: Đăng ký khách (chỉ tạo customer; field thừa bị từ chối)
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/RegisterRequest"}}}}
+      responses: {"201": {$ref: "#/components/responses/Session"}, "409": {$ref: "#/components/responses/Error"}, "422": {$ref: "#/components/responses/Error"}}
+  /v1/auth/login:
+    post:
+      tags: [auth]
+      security: []
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/LoginRequest"}}}}
+      responses: {"200": {$ref: "#/components/responses/Session"}, "401": {$ref: "#/components/responses/Error"}, "429": {$ref: "#/components/responses/Error"}}
+  /v1/auth/refresh:
+    post:
+      tags: [auth]
+      security: []
+      summary: Đổi refresh token (cookie HttpOnly) lấy access token mới; có ân hạn 10-30 giây
+      responses: {"200": {$ref: "#/components/responses/Session"}, "401": {$ref: "#/components/responses/Error"}}
+  /v1/auth/logout:
+    post: {tags: [auth], security: [], summary: Thu hồi họ refresh (cookie + X-Requested-With), responses: {"204": {description: đã thu hồi họ refresh}}}
+  /v1/auth/me:
+    get:
+      tags: [auth]
+      responses: {"200": {description: Người dùng hiện tại, content: {application/json: {schema: {$ref: "#/components/schemas/User"}}}}}
+  /v1/chat:
+    post:
+      tags: [chat]
+      summary: Gửi tin (JSON). Khách chưa đăng nhập 401; thread đang chờ xác nhận hoặc đang chạy 409
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ChatRequest"}}}}
+      responses: {"200": {description: Kết quả lượt, content: {application/json: {schema: {$ref: "#/components/schemas/ChatResponse"}}}}, "401": {$ref: "#/components/responses/Error"}, "409": {description: "Đang có lượt chạy (code=turn_running) hoặc chờ xác nhận (code=confirmation_pending, kèm pending)", content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}}, "429": {$ref: "#/components/responses/Error"}}
+  /v1/chat/stream:
+    post:
+      tags: [chat]
+      summary: Như /v1/chat nhưng SSE (kiểm tra rồi mới hiện)
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ChatRequest"}}}}
+      responses:
+        "200":
+          description: |
+            text/event-stream. Sự kiện: status {node|tool, phase: start|end}, message {text, lang}, confirm_required {ConfirmPayload},
+            handoff {ticket_id}, done {thread_id, status: completed|awaiting_confirmation|handoff}, error {code, message}. KHÔNG có sự kiện token.
+          content: {text/event-stream: {schema: {type: string}}}
+  /v1/chat/{thread_id}/resume:
+    post:
+      tags: [chat]
+      parameters: [{name: thread_id, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/ResumeRequest"}}}}
+      responses: {"200": {description: Kết quả lượt, content: {application/json: {schema: {$ref: "#/components/schemas/ChatResponse"}}}}, "409": {$ref: "#/components/responses/Error"}}
+  /v1/chat/{thread_id}/cancel-pending:
+    post:
+      tags: [chat]
+      parameters: [{name: thread_id, in: path, required: true, schema: {type: string, format: uuid}}]
+      responses: {"204": {description: đã huỷ hành động đang chờ xác nhận}}
+  /v1/conversations:
+    get: {tags: [chat], parameters: [{$ref: "#/components/parameters/Cursor"}, {$ref: "#/components/parameters/Limit"}], responses: {"200": {description: Danh sách, content: {application/json: {schema: {$ref: "#/components/schemas/ConversationPage"}}}}}}
+  /v1/conversations/{thread_id}:
+    parameters: [{name: thread_id, in: path, required: true, schema: {type: string, format: uuid}}]
+    get: {tags: [chat], responses: {"200": {description: Tin nhắn đã lọc (không lộ nội bộ tool), content: {application/json: {schema: {$ref: "#/components/schemas/ConversationDetail"}}}}}}
+    delete: {tags: [chat], summary: Xoá mềm + xoá checkpoint + bộ nhớ liên quan, responses: {"204": {description: ok}}}
+  /v1/me/memory:
+    get: {tags: [me], responses: {"200": {description: Mục bộ nhớ có cấu trúc, content: {application/json: {schema: {type: array, items: {$ref: "#/components/schemas/MemoryItem"}}}}}}}
+  /v1/me/memory/{key}:
+    get: {tags: [me], parameters: [{name: key, in: path, required: true, schema: {type: string}}], responses: {"200": {description: Một mục bộ nhớ, content: {application/json: {schema: {$ref: "#/components/schemas/MemoryItem"}}}}, "404": {$ref: "#/components/responses/Error"}}}
+    delete: {tags: [me], parameters: [{name: key, in: path, required: true, schema: {type: string}}], responses: {"204": {description: ok}}}
+  /v1/me/memory/consent:
+    post:
+      tags: [me]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [granted], properties: {granted: {type: boolean}}}}}}
+      responses: {"204": {description: ok}}
+  /v1/me/notifications:
+    get: {tags: [me], parameters: [{$ref: "#/components/parameters/Cursor"}, {$ref: "#/components/parameters/Limit"}], responses: {"200": {description: Thông báo, content: {application/json: {schema: {$ref: "#/components/schemas/NotificationPage"}}}}}}
+  /v1/me/notifications/{id}/read:
+    post: {tags: [me], parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {"204": {description: ok}}}
+  /v1/me/refunds:
+    get: {tags: [refunds], parameters: [{$ref: "#/components/parameters/Cursor"}, {$ref: "#/components/parameters/Limit"}], responses: {"200": {description: Yêu cầu hoàn tiền của tôi, content: {application/json: {schema: {$ref: "#/components/schemas/RefundPage"}}}}}}
+  /v1/me/refunds/{id}:
+    get: {tags: [refunds], parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {"200": {description: Chi tiết, content: {application/json: {schema: {$ref: "#/components/schemas/Refund"}}}}, "404": {$ref: "#/components/responses/Error"}}}
+  /v1/refunds/{id}/cancel:
+    post: {tags: [refunds], summary: Khách huỷ khi pending_staff, parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {"200": {description: ok, content: {application/json: {schema: {$ref: "#/components/schemas/Refund"}}}}, "409": {$ref: "#/components/responses/Error"}}}
+  /v1/refunds/{id}/payout-info:
+    patch:
+      tags: [refunds]
+      summary: Khách điền tài khoản nhận tiền (mã hoá cấp ứng dụng, chỉ chủ yêu cầu)
+      parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/PayoutInfo"}}}}
+      responses: {"204": {description: ok}, "403": {$ref: "#/components/responses/Error"}}
+  /v1/me/tickets:
+    get: {tags: [me], parameters: [{$ref: "#/components/parameters/Cursor"}, {$ref: "#/components/parameters/Limit"}], responses: {"200": {description: Phiếu của tôi, content: {application/json: {schema: {$ref: "#/components/schemas/TicketPage"}}}}}}
+  /v1/me/tickets/{id}:
+    get: {tags: [me], parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {"200": {description: Chi tiết phiếu, content: {application/json: {schema: {$ref: "#/components/schemas/Ticket"}}}}, "404": {$ref: "#/components/responses/Error"}}}
+  /v1/staff/refunds:
+    get:
+      tags: [staff]
+      parameters:
+        - {name: status, in: query, schema: {$ref: "#/components/schemas/RefundStatus"}}
+        - {$ref: "#/components/parameters/Cursor"}
+        - {$ref: "#/components/parameters/Limit"}
+      responses: {"200": {description: Hàng đợi hoàn tiền, content: {application/json: {schema: {$ref: "#/components/schemas/RefundPage"}}}}, "403": {$ref: "#/components/responses/Error"}}
+  /v1/staff/refunds/{id}:
+    get: {tags: [staff], parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {"200": {description: Chi tiết + trần + sự kiện, content: {application/json: {schema: {$ref: "#/components/schemas/Refund"}}}}}}
+  /v1/staff/refunds/{id}/decision:
+    post:
+      tags: [staff]
+      parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody: {required: true, content: {application/json: {schema: {$ref: "#/components/schemas/RefundDecision"}}}}
+      responses: {"200": {description: ok, content: {application/json: {schema: {$ref: "#/components/schemas/Refund"}}}}, "409": {$ref: "#/components/responses/Error"}}
+  /v1/staff/refunds/{id}/payout:
+    post:
+      tags: [staff]
+      summary: Ghi chi trả (chặn khi chưa có payout_info; số tiền = approved_amount)
+      parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [payout_reference], properties: {payout_reference: {type: string, maxLength: 120}}}}}}
+      responses: {"200": {description: ok, content: {application/json: {schema: {$ref: "#/components/schemas/Refund"}}}}, "409": {$ref: "#/components/responses/Error"}}
+  /v1/staff/tickets:
+    get:
+      tags: [staff]
+      parameters:
+        - {name: status, in: query, schema: {$ref: "#/components/schemas/TicketStatus"}}
+        - {$ref: "#/components/parameters/Cursor"}
+        - {$ref: "#/components/parameters/Limit"}
+      responses: {"200": {description: Hàng đợi phiếu, content: {application/json: {schema: {$ref: "#/components/schemas/TicketPage"}}}}}
+  /v1/staff/tickets/{id}:
+    get: {tags: [staff], parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {"200": {description: Chi tiết phiếu, content: {application/json: {schema: {$ref: "#/components/schemas/Ticket"}}}}}}
+  /v1/staff/tickets/{id}/assign:
+    post: {tags: [staff], parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {"200": {description: ok, content: {application/json: {schema: {$ref: "#/components/schemas/Ticket"}}}}}}
+  /v1/staff/tickets/{id}/respond:
+    post:
+      tags: [staff]
+      parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}]
+      requestBody: {required: true, content: {application/json: {schema: {type: object, required: [note], properties: {note: {type: string, maxLength: 2000}}}}}}
+      responses: {"200": {description: ok, content: {application/json: {schema: {$ref: "#/components/schemas/Ticket"}}}}}
+  /v1/staff/tickets/{id}/resolve:
+    post: {tags: [staff], parameters: [{name: id, in: path, required: true, schema: {type: string, format: uuid}}], responses: {"200": {description: ok, content: {application/json: {schema: {$ref: "#/components/schemas/Ticket"}}}}}}
+  /v1/staff/conversations/{thread_id}/excerpt:
+    get:
+      tags: [staff]
+      summary: Trích đoạn hội thoại gắn với yêu cầu hoàn tiền/phiếu (ghi log truy cập)
+      parameters:
+        - {name: thread_id, in: path, required: true, schema: {type: string, format: uuid}}
+        - {name: ref, in: query, required: true, schema: {type: string}, description: "refund:<id> hoặc ticket:<id>"}
+      responses: {"200": {description: Trích đoạn, content: {application/json: {schema: {$ref: "#/components/schemas/ConversationDetail"}}}}, "403": {$ref: "#/components/responses/Error"}}
+components:
+  parameters:
+    Cursor: {name: cursor, in: query, schema: {type: string}}
+    Limit: {name: limit, in: query, schema: {type: integer, minimum: 1, maximum: 100, default: 20}}
+  securitySchemes:
+    bearer: {type: http, scheme: bearer, bearerFormat: JWT}
+  responses:
+    Error:
+      description: Lỗi
+      content: {application/json: {schema: {$ref: "#/components/schemas/Error"}}}
+    Session:
+      description: Phiên (access token trong body, refresh token trong cookie HttpOnly)
+      content: {application/json: {schema: {$ref: "#/components/schemas/Session"}}}
+  schemas:
+    Error: {type: object, required: [code, message, request_id], properties: {code: {type: string}, message: {type: string}, request_id: {type: string}, pending: {oneOf: [{$ref: "#/components/schemas/ConfirmPayload"}, {type: "null"}], description: "có khi code=confirmation_pending"}}}
+    Product:
+      type: object
+      required: [slug, name, category, brand, price_vnd, stock]
+      properties:
+        slug: {type: string}
+        name: {type: string}
+        category: {type: string}
+        brand: {type: string}
+        price_vnd: {type: integer}
+        old_price_vnd: {type: [integer, "null"]}
+        rating: {type: number}
+        stock: {type: integer}
+        specs: {type: object, additionalProperties: {type: string}}
+        description: {type: string}
+        image_url: {type: [string, "null"]}
+    RegisterRequest: {type: object, additionalProperties: false, required: [email, password, full_name], properties: {email: {type: string, format: email}, password: {type: string, minLength: 10}, full_name: {type: string}, phone: {type: string}}}
+    LoginRequest: {type: object, additionalProperties: false, required: [email, password], properties: {email: {type: string, format: email}, password: {type: string}}}
+    User: {type: object, required: [id, email, role], properties: {id: {type: string, format: uuid}, email: {type: string}, full_name: {type: string}, role: {type: string, enum: [customer, staff, admin]}, memory_consent: {type: boolean}}}
+    Session: {type: object, required: [access_token, expires_in, user], properties: {access_token: {type: string}, expires_in: {type: integer}, user: {$ref: "#/components/schemas/User"}}}
+    ChatRequest: {type: object, additionalProperties: false, required: [message], properties: {message: {type: string, maxLength: 4000}, thread_id: {type: [string, "null"], format: uuid, description: "Bỏ trống để mở hội thoại mới; server sinh thread_id"}}}
+    ResumeRequest: {type: object, additionalProperties: false, required: [approved], properties: {approved: {type: boolean}, note: {type: string, maxLength: 500}}}
+    ConfirmPayload:
+      type: object
+      required: [action, order_id, amount_vnd, max_refundable_vnd]
+      properties:
+        action: {type: string, enum: [request_refund]}
+        order_id: {type: string}
+        amount_vnd: {type: integer}
+        reason: {type: string}
+        max_refundable_vnd: {type: integer}
+    ChatResponse:
+      type: object
+      required: [thread_id, status]
+      properties:
+        thread_id: {type: string, format: uuid}
+        status: {type: string, enum: [completed, awaiting_confirmation, handoff], description: "completed: có reply; awaiting_confirmation: có confirm; handoff: có ticket_id"}
+        reply: {type: [string, "null"]}
+        lang: {type: string, enum: [vi, en]}
+        confirm: {oneOf: [{$ref: "#/components/schemas/ConfirmPayload"}, {type: "null"}]}
+        ticket_id: {type: [string, "null"], format: uuid}
+    Conversation: {type: object, required: [thread_id, status], properties: {thread_id: {type: string, format: uuid}, title: {type: string}, status: {type: string, enum: [open, handoff, closed]}, last_message_at: {type: string, format: date-time}}}
+    ConversationDetail: {type: object, properties: {thread_id: {type: string, format: uuid}, messages: {type: array, items: {type: object, required: [role, text], properties: {role: {type: string, enum: [user, assistant]}, text: {type: string}, at: {type: string, format: date-time}}}}}}
+    MemoryItem: {type: object, properties: {key: {type: string, enum: [preferred_category, preferred_brand, language, issue_type]}, value: {type: string}}}
+    Notification:
+      type: object
+      required: [id, type]
+      properties:
+        id: {type: string, format: uuid}
+        type: {type: string, enum: [refund_decided, refund_paid_out, payment_confirmed, payment_rejected, ticket_updated]}
+        payload: {type: object, additionalProperties: true, description: "Theo type: refund_*: {refund_id, order_id, status}; payment_*: {order_id, payment_id}; ticket_updated: {ticket_id, status}"}
+        read: {type: boolean}
+        created_at: {type: string, format: date-time}
+    RefundStatus: {type: string, enum: [pending_staff, approved, rejected, paid_out, cancelled]}
+    Refund:
+      type: object
+      required: [id, order_id, status, requested_amount_vnd]
+      properties:
+        id: {type: string, format: uuid}
+        order_id: {type: string}
+        source: {type: string, enum: [customer_request, system_cancel_paid]}
+        status: {$ref: "#/components/schemas/RefundStatus"}
+        requested_amount_vnd: {type: integer}
+        approved_amount_vnd: {type: [integer, "null"]}
+        reason: {type: string}
+        decision_note: {type: [string, "null"]}
+        payout_info_provided: {type: boolean}
+        payout_reference: {type: [string, "null"]}
+        max_refundable_vnd: {type: integer}
+        events: {type: array, items: {$ref: "#/components/schemas/StatusEvent"}}
+        created_at: {type: string, format: date-time}
+    TicketPage: {type: object, required: [items], properties: {items: {type: array, items: {$ref: "#/components/schemas/Ticket"}}, next_cursor: {type: [string, "null"]}}}
+    ConversationPage: {type: object, required: [items], properties: {items: {type: array, items: {$ref: "#/components/schemas/Conversation"}}, next_cursor: {type: [string, "null"]}}}
+    NotificationPage: {type: object, required: [items], properties: {items: {type: array, items: {$ref: "#/components/schemas/Notification"}}, next_cursor: {type: [string, "null"]}}}
+    RefundPage: {type: object, required: [items], properties: {items: {type: array, items: {$ref: "#/components/schemas/Refund"}}, next_cursor: {type: [string, "null"]}}}
+    RefundDecision: {type: object, additionalProperties: false, required: [decision, note], properties: {decision: {type: string, enum: [approve, reject]}, approved_amount_vnd: {type: integer}, note: {type: string, minLength: 1, maxLength: 500}}}
+    PayoutInfo: {type: object, additionalProperties: false, required: [bank_name, account_number, account_holder], properties: {bank_name: {type: string}, account_number: {type: string}, account_holder: {type: string}}}
+    StatusEvent: {type: object, properties: {from_status: {type: string}, to_status: {type: string}, actor: {type: string, description: "tên hiển thị hoặc 'system'"}, note: {type: [string, "null"]}, at: {type: string, format: date-time}}}
+    TicketStatus: {type: string, enum: [open, in_progress, resolved, closed]}
+    Ticket:
+      type: object
+      required: [id, category, status, priority]
+      properties:
+        id: {type: string, format: uuid}
+        category: {type: string, enum: [human_requested, complaint_legal, exchange_or_address, defective, refund_dispute, other]}
+        summary: {type: string}
+        priority: {type: string, enum: [normal, high]}
+        status: {$ref: "#/components/schemas/TicketStatus"}
+        order_id: {type: [string, "null"]}
+        due_at: {type: string, format: date-time}
+        resolution_note: {type: [string, "null"]}

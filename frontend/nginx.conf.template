@@ -1,0 +1,17 @@
+# ${API_KEY} được image nginx thay bằng envsubst khi container khởi động
+server {
+    listen 80;
+    root /usr/share/nginx/html;
+    index index.html;
+
+    location /api/ {
+        proxy_pass http://api:8000/;
+        proxy_set_header X-API-Key "${API_KEY}";
+        proxy_set_header Host $host;
+        proxy_read_timeout 120s;
+    }
+
+    location / {
+        try_files $uri /index.html;
+    }
+}

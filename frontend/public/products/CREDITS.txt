@@ -1,0 +1,20 @@
+Ảnh sản phẩm lấy từ Wikimedia Commons (giấy phép tự do). Nguồn từng ảnh:
+
+iphone-16-128gb.jpg: "Back view of iPhone 16 Ultramarine.jpg" - メイド理世 - CC BY-SA 4.0 - https://commons.wikimedia.org/wiki/File:Back_view_of_iPhone_16_Ultramarine.jpg
+xiaomi-redmi-note-14-pro.jpg: "Redmi Note 14 Pro (1).jpg" - 茅野ふたば - CC BY-SA 4.0 - https://commons.wikimedia.org/wiki/File:Redmi_Note_14_Pro_(1).jpg
+asus-vivobook-15-i5.jpg: "Asus Vivobook 15.jpg" - LeopardWin - CC0 - https://commons.wikimedia.org/wiki/File:Asus_Vivobook_15.jpg
+ipad-gen-10-64gb.jpg: "IPad 10th Generation 2024.jpg" - Captainmorlypogi1959 - CC BY-SA 4.0 - https://commons.wikimedia.org/wiki/File:IPad_10th_Generation_2024.jpg
+apple-watch-se-2.jpg: "Apple Watch SE 2 (GPS + Cellular, 40mm, Midnight) with Anchor Blue Sport Loop.jpg" - AzureSaturn - CC0 - https://commons.wikimedia.org/wiki/File:Apple_Watch_SE_2_(GPS_%2B_Cellular,_40mm,_Midnight)_with_Anchor_Blue_Sport_Loop.jpg
+airpods-pro-2-usb-c.jpg: "AirPods Pro 2.jpg" - — aconcagua (talk) - CC BY-SA 4.0 - https://commons.wikimedia.org/wiki/File:AirPods_Pro_2.jpg
+pin-du-phong-anker-10000.jpg: "Anker power bank lit.jpg" - Saucy - CC BY 4.0 - https://commons.wikimedia.org/wiki/File:Anker_power_bank_lit.jpg
+
+Ảnh lấy từ trang chính hãng / cửa hàng (bản quyền thuộc nhà sản xuất hoặc nhà bán lẻ, chỉ dùng cho bản demo):
+samsung-galaxy-s25-256gb.jpg: Samsung Vietnam - https://www.samsung.com/vn/smartphones/galaxy-s25/
+macbook-air-m3-13.png: Apple - https://www.apple.com/macbook-air/
+xiaomi-smart-band-9.png: Xiaomi - https://www.mi.com/global/product/xiaomi-smart-band-9/
+anker-sac-20w.png: Anker - https://www.anker.com/products/a2637
+lenovo-loq-15-rtx4050.png: FPT Shop - https://fptshop.com.vn/may-tinh-xach-tay/lenovo-gaming-loq-15irx9-i7-13650hx-83dv01alvn
+oppo-reno13-5g.jpg: Thế Giới Di Động - https://www.thegioididong.com/dtdd/oppo-reno13-5g
+galaxy-tab-s9-fe.jpg: CellphoneS - https://cellphones.com.vn/samsung-galaxy-tab-s9-fe.html
+sony-wh-1000xm5.png: CellphoneS - https://cellphones.com.vn/tai-nghe-chup-tai-sony-wh-1000xm5.html
+dell-inspiron-14-5440-i5.png: CellphoneS - https://cellphones.com.vn/laptop-dell-inspiron-14-5440-d0f3w.html

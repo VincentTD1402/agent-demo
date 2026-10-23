@@ -1,0 +1,26 @@
+FROM python:3.12-slim
+
+# uv: cài dependency nhanh, theo đúng uv.lock
+COPY --from=ghcr.io/astral-sh/uv:0.11.13 /uv /usr/local/bin/uv
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    PATH="/srv/.venv/bin:$PATH"
+
+WORKDIR /srv
+
+# Tách lớp dependency để cache khi chỉ đổi code
+COPY pyproject.toml uv.lock ./
+RUN uv sync --frozen --no-dev --no-install-project
+
+COPY backend/app ./app
+
+# Chạy bằng user thường, không dùng root
+RUN useradd --system --uid 10001 appuser
+USER appuser
+
+EXPOSE 8000
+# Mặc định chạy API; service mcp-server ghi đè command trong docker-compose
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
