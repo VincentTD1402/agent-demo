@@ -1,17 +1,18 @@
 """MCP server của ShopBot: tra đơn, hoàn tiền, chính sách (Streamable HTTP)."""
 import logging
-import os
 
 from mcp.server.fastmcp import FastMCP
 
 from app.mcp_server import db
+from app.settings.mcp import get_mcp_settings
 
-logging.basicConfig(level=os.getenv("LOG_LEVEL", "INFO").upper())
+_settings = get_mcp_settings()
+logging.basicConfig(level=_settings.log_level.upper())
 
 mcp = FastMCP(
     "shopbot",
-    host=os.getenv("MCP_HOST", "127.0.0.1"),
-    port=int(os.getenv("MCP_PORT", "8001")),
+    host=_settings.mcp_host,
+    port=_settings.mcp_port,
     stateless_http=True,
 )
 

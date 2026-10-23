@@ -1,4 +1,5 @@
 # Chạy: docker compose up -d --build   (cần file .env, xem .env.example)
+# Mỗi service chỉ nhận biến môi trường nó cần; chỉ `migrate` thấy DSN superuser và mật khẩu của cả 3 role DB.
 services:
   db:
     image: pgvector/pgvector:pg17
@@ -16,19 +17,41 @@ services:
       retries: 10
     networks: [internal]
 
+  # Chạy một lần: tạo role, alembic upgrade, bảng LangGraph, GRANT, seed. Thoát mã 0 thì api/mcp-server mới lên.
+  migrate:
+    build: .
+    restart: "no"
+    command: ["python", "-m", "app.db.bootstrap"]
+    environment:
+      BOOTSTRAP_DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-shopbot}
+      # Chuyển tiếp thành phần của URL để migrate kiểm tra ký tự/độ mạnh trước khi dùng (URL không mã hoá %)
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-shopbot}
+      MIGRATOR_DB_PASSWORD: ${MIGRATOR_DB_PASSWORD:?set in .env}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?set in .env}
+      MCP_DB_PASSWORD: ${MCP_DB_PASSWORD:?set in .env}
+      EMBEDDING_DIMS: ${EMBEDDING_DIMS:-1024}
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-false}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks: [internal]
+
   # Công cụ của agent đóng gói thành MCP server (Streamable HTTP), chỉ nằm trong mạng nội bộ
   mcp-server:
     build: .
     restart: unless-stopped
     command: ["python", "-m", "app.mcp_server.server"]
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-shopbot}
+      DATABASE_URL: postgresql://shopbot_mcp:${MCP_DB_PASSWORD:?set in .env}@db:5432/${POSTGRES_DB:-shopbot}
       MCP_HOST: 0.0.0.0
       MCP_PORT: "8001"
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DB_POOL_MAX: ${DB_POOL_MAX:-5}
     depends_on:
-      db:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 8001), 2)"]
       interval: 5s
@@ -39,15 +62,35 @@ services:
   api:
     build: .
     restart: unless-stopped
-    env_file: .env
     environment:
-      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-shopbot}
+      DATABASE_URL: postgresql://shopbot_app:${APP_DB_PASSWORD:?set in .env}@db:5432/${POSTGRES_DB:-shopbot}
       MCP_SERVER_URL: http://mcp-server:8001/mcp
+      LLM_BASE_URL: ${LLM_BASE_URL:?set in .env}
+      LLM_API_KEY: ${LLM_API_KEY:-not-needed}
+      LLM_MODEL: ${LLM_MODEL:?set in .env}
+      EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL:-}
+      EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:?set in .env}
+      EMBEDDING_DIMS: ${EMBEDDING_DIMS:-1024}
+      API_KEY: ${API_KEY:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      AGENT_MAX_STEPS: ${AGENT_MAX_STEPS:-12}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      PAYOUT_ENCRYPTION_KEY: ${PAYOUT_ENCRYPTION_KEY:?set in .env}
+      SHIPPING_FEE_VND: ${SHIPPING_FEE_VND:-30000}
+      FREE_SHIPPING_FROM_VND: ${FREE_SHIPPING_FROM_VND:-500000}
+      REFUND_WINDOW_DAYS: ${REFUND_WINDOW_DAYS:-7}
+      LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.0}
+      LLM_TIMEOUT_S: ${LLM_TIMEOUT_S:-60}
+      DB_POOL_MAX: ${DB_POOL_MAX:-5}
+      SA_POOL_SIZE: ${SA_POOL_SIZE:-5}
+      SA_MAX_OVERFLOW: ${SA_MAX_OVERFLOW:-2}
+      LANGGRAPH_POOL_MAX: ${LANGGRAPH_POOL_MAX:-5}
     ports:
       - "${API_PORT:-8000}:8000"
     depends_on:
-      db:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
       mcp-server:
         condition: service_healthy
     healthcheck:

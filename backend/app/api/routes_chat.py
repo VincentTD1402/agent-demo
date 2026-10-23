@@ -8,7 +8,7 @@ from langgraph.types import Command
 
 from app.api.deps import get_graph, require_api_key
 from app.api.schemas import ChatRequest, ChatResponse, PendingAction, ResumeRequest
-from app.config import Settings, get_settings
+from app.settings.api import ApiSettings, get_api_settings
 
 log = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1/chat", tags=["chat"], dependencies=[Depends(require_api_key)])
@@ -35,7 +35,7 @@ def _to_response(thread_id: str, result: dict) -> ChatResponse:
     return ChatResponse(thread_id=thread_id, status="completed", reply=_final_text(result["messages"]))
 
 
-async def _run(graph, payload, thread_id: str, user_id: str, settings: Settings) -> ChatResponse:
+async def _run(graph, payload, thread_id: str, user_id: str, settings: ApiSettings) -> ChatResponse:
     config = {
         "configurable": {"thread_id": thread_id, "user_id": user_id},
         # Chặn vòng lặp vô tận (lỗi công cụ lặp lại tốn tiền)
@@ -61,7 +61,7 @@ async def _assert_owner(graph, thread_id: str, user_id: str) -> None:
 async def chat(
     req: ChatRequest,
     graph=Depends(get_graph),
-    settings: Settings = Depends(get_settings),
+    settings: ApiSettings = Depends(get_api_settings),
 ):
     thread_id = req.thread_id or uuid.uuid4().hex
     if req.thread_id:
@@ -76,7 +76,7 @@ async def resume(
     thread_id: str,
     req: ResumeRequest,
     graph=Depends(get_graph),
-    settings: Settings = Depends(get_settings),
+    settings: ApiSettings = Depends(get_api_settings),
 ):
     await _assert_owner(graph, thread_id, req.user_id)
     snap = await graph.aget_state({"configurable": {"thread_id": thread_id}})

@@ -1,7 +1,7 @@
 ---
 phase: 2
 title: "Alembic and SQLAlchemy foundation"
-status: pending
+status: completed
 priority: P1
 effort: "2.5d"
 milestone: "M1"
@@ -49,16 +49,16 @@ Dựng SQLAlchemy 2.0 (async) + Alembic, tách việc tạo schema khỏi lúc A
 
 ## Todo List
 
-- [ ] Alembic + `env.py` + `include_object`
-- [ ] Service `migrate` + role DB + GRANT LangGraph
-- [ ] Gỡ `setup()` khỏi `runtime.py`; chạy API bằng role `app`
-- [ ] Settings theo tiến trình + ngân sách kết nối
+- [x] Alembic + `env.py` + `include_object`
+- [x] Service `migrate` + role DB + GRANT LangGraph
+- [x] Gỡ `setup()` khỏi `runtime.py`; chạy API bằng role `app` (đồ thị + saver/store + checkpoint/store ghi-đọc bằng role `app` đã test; chưa chạy cả compose stack)
+- [x] Settings theo tiến trình + ngân sách kết nối
 
 ## Success Criteria
 
-- [ ] Volume trống: `migrate` thoát 0, `api` lên với role `app`, không còn DDL lúc runtime
-- [ ] `alembic check` sạch kể cả khi bảng LangGraph đã tồn tại; không autogenerate nào đề xuất `DROP` bảng LangGraph
-- [ ] Tổng kết nối tối đa của các tiến trình nằm trong `max_connections`
+- [x] Volume trống: `migrate` thoát 0, role `app` chạy đồ thị chat giả không DDL. Bằng chứng: tester dựng stack cô lập (`docker compose -p p2verify`, volume/network riêng, đã gỡ) với LLM giả: `migrate` thoát 0, `api` healthy bằng role `shopbot_app`, `mcp-server` healthy bằng `shopbot_mcp`, không có DDL lúc chạy (`log_statement=ddl`), chat trả 502 có kiểm soát vì LLM giả (đường LLM thật chưa chạy). Chờ user duyệt nên status giữ `pending`
+- [x] `alembic check` sạch kể cả khi bảng LangGraph đã tồn tại; không autogenerate nào đề xuất `DROP` bảng LangGraph
+- [x] Tổng kết nối tối đa của các tiến trình nằm trong `max_connections`
 
 ## Risk Assessment
 
@@ -71,3 +71,16 @@ Ba role DB tối thiểu; API không có quyền DDL; secret theo tiến trình,
 ## Next Steps
 
 Phase 3 (schema) dùng nền này; Plan A phase 9 hoàn thiện triển khai.
+
+## Kết quả thực thi (2026-10-23)
+
+Thực hiện xong; `scripts/check.sh` xanh (ruff, pytest 19 pass với `TEST_DATABASE_URL`, pip-audit sạch, frontend typecheck). Không đặt `TEST_DATABASE_URL` thì 9 test DB skip kèm lý do.
+
+- Revision `0001`: extension (`vector`, `pg_trgm`, `unaccent`) + `immutable_unaccent()` + 3 bảng hiện có (products, orders, refunds) dưới dạng model `app/shop/models.py`. Downgrade: bỏ bảng + hàm, giữ extension.
+- Bootstrap (`python -m app.db.bootstrap`): khoá advisory -> (superuser) extension vector + role + quyền DB -> `alembic upgrade` (migrator) -> LangGraph `setup()` -> GRANT -> seed. Thứ tự lệch spec một chút: tạo role **trước** upgrade vì migrator cần tồn tại để chạy migration.
+- Phát hiện khi làm: (1) `pg_advisory_lock` chặn gây **deadlock vô hình** với `CREATE INDEX CONCURRENTLY` của LangGraph khi 2 bản migrate chạy song song -> dùng `pg_try_advisory_lock` thăm dò; (2) migrator cần `GRANT CREATE ON DATABASE` mới tạo được `pg_trgm`/`unaccent`; (3) LangGraph còn 2 bảng `store_migrations`, `vector_migrations` ngoài danh sách trong spec -> thêm vào danh sách loại trừ + dùng `include_name` để không reflect (tránh cảnh báo kiểu `vector`).
+- Role: `shopbot_migrator|app|mcp`. `mcp` có SELECT products/orders/refunds **và INSERT refunds** (MCP hiện ghi hoàn tiền; quyết định "SELECT-only" không khả thi cho tới khi phase sau đổi luồng hoàn tiền).
+- `config.py` bị xoá, thay bằng `app/settings/{api,migrate,mcp}.py`; `ApiSettings` bắt buộc `PAYOUT_ENCRYPTION_KEY` (Fernet hợp lệ). `.env` cũ phải thêm `PAYOUT_ENCRYPTION_KEY`, `MIGRATOR_DB_PASSWORD`, `APP_DB_PASSWORD`, `MCP_DB_PASSWORD` thì compose mới lên.
+- Volume Postgres cũ (bảng tạo bằng `ensure_schema`, chủ là superuser) cần `down -v` hoặc chuyển chủ sở hữu + `alembic stamp 0001` (ghi trong `docs/deployment-guide.md`).
+- `alembic check` trong `scripts/check`: chạy trực tiếp nếu có `ALEMBIC_DATABASE_URL`; nếu có `TEST_DATABASE_URL` thì nằm trong `test_migrations.py`; không có cả hai thì script THẤT BẠI (trừ `SKIP_DB_CHECKS=1`, in cảnh báo `SKIPPED-DB-CHECKS`).
+- Sau vòng sửa review: `app` chỉ SELECT bảng nghiệp vụ (DML bảng LangGraph), default privileges cho bảng mới, thu `TEMPORARY` khỏi PUBLIC, mật khẩu `[A-Za-z0-9]{12,}` và khác nhau đôi một, settings không in lại giá trị bị từ chối, seed mặc định tắt + một transaction. Chi tiết: mục "Fix round" của implementation report.

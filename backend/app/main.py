@@ -9,30 +9,43 @@ from psycopg_pool import AsyncConnectionPool
 
 from app.agent.runtime import open_runtime
 from app.api import routes_chat, routes_health, routes_products
-from app.config import get_settings
-from app.shop.schema import ensure_schema
+from app.db.session import create_engine_from_settings, create_session_factory
+from app.settings.api import get_api_settings
+
+
+def _open_pool(dsn: str, max_size: int) -> AsyncConnectionPool:
+    return AsyncConnectionPool(
+        dsn, min_size=1, max_size=max_size, open=False, kwargs={"row_factory": dict_row, "autocommit": True}
+    )
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    settings = get_settings()
+    settings = get_api_settings()
     logging.basicConfig(
         level=settings.log_level.upper(), format="%(asctime)s %(levelname)s %(name)s: %(message)s"
     )
-    await ensure_schema(settings.database_url, settings.seed_demo_data)
+    logging.getLogger(__name__).info("Số kết nối Postgres tối đa của API: %s", settings.max_connections)
     async with AsyncExitStack() as stack:
-        pool = AsyncConnectionPool(
-            settings.database_url, open=False, kwargs={"row_factory": dict_row, "autocommit": True}
-        )
+        # Schema do bước migrate tạo; API chỉ kết nối bằng role `app` (DML, không DDL)
+        pool = _open_pool(settings.database_url, settings.db_pool_max)
         await pool.open()
         stack.push_async_callback(pool.close)
         app.state.pool = pool
-        app.state.graph = await open_runtime(settings, stack)
+
+        engine = create_engine_from_settings(settings)
+        stack.push_async_callback(engine.dispose)
+        app.state.session_factory = create_session_factory(engine)
+
+        graph_pool = _open_pool(settings.database_url, settings.langgraph_pool_max)
+        await graph_pool.open()
+        stack.push_async_callback(graph_pool.close)
+        app.state.graph = await open_runtime(settings, graph_pool)
         yield
 
 
 def create_app() -> FastAPI:
-    settings = get_settings()
+    settings = get_api_settings()
     app = FastAPI(title="ShopBot Agent API", version="0.1.0", lifespan=lifespan)
     app.add_middleware(
         CORSMiddleware,

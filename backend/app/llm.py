@@ -1,10 +1,10 @@
 """Factory tạo chat model và embedding trỏ tới server AI tự host."""
 from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 
-from app.config import Settings
+from app.settings.api import ApiSettings
 
 
-def build_chat_model(s: Settings) -> ChatOpenAI:
+def build_chat_model(s: ApiSettings) -> ChatOpenAI:
     return ChatOpenAI(
         base_url=s.llm_base_url,
         api_key=s.llm_api_key,
@@ -15,7 +15,7 @@ def build_chat_model(s: Settings) -> ChatOpenAI:
     )
 
 
-def build_embeddings(s: Settings) -> OpenAIEmbeddings:
+def build_embeddings(s: ApiSettings) -> OpenAIEmbeddings:
     return OpenAIEmbeddings(
         base_url=s.embedding_base_url or s.llm_base_url,
         api_key=s.embedding_api_key or s.llm_api_key,

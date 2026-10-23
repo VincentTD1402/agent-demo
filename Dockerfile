@@ -16,11 +16,14 @@ COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-dev --no-install-project
 
 COPY backend/app ./app
+# Migration + cấu hình Alembic (service `migrate` chạy `python -m app.db.bootstrap`)
+COPY backend/alembic.ini ./alembic.ini
+COPY backend/migrations ./migrations
 
 # Chạy bằng user thường, không dùng root
 RUN useradd --system --uid 10001 appuser
 USER appuser
 
 EXPOSE 8000
-# Mặc định chạy API; service mcp-server ghi đè command trong docker-compose
+# Mặc định chạy API; service mcp-server và migrate ghi đè command trong docker-compose
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,9 +1,9 @@
-"""Schema cửa hàng (products, orders, refunds) và dữ liệu mẫu khi bảng còn trống."""
-import json
+"""DDL cũ của cửa hàng (products, orders, refunds), không còn được API gọi.
 
+Nguồn sự thật hiện là migration Alembic + app/shop/models.py; file này chỉ còn để đối chiếu và sẽ bị xoá
+khi schema mới thay thế.
+"""
 import psycopg
-
-from app.shop.seed_data import IMAGES, ORDERS, PRODUCTS
 
 _DDL = """
 CREATE TABLE IF NOT EXISTS products (
@@ -43,31 +43,7 @@ CREATE TABLE IF NOT EXISTS refunds (
 """
 
 
-async def ensure_schema(database_url: str, seed: bool) -> None:
-    """Tạo bảng (idempotent); nếu seed=True thì nạp dữ liệu mẫu cho bảng còn trống."""
+async def ensure_schema(database_url: str) -> None:
+    """Tạo bảng (idempotent). Chỉ dùng cho môi trường không chạy Alembic."""
     async with await psycopg.AsyncConnection.connect(database_url, autocommit=True) as conn:
         await conn.execute(_DDL)
-        if not seed:
-            return
-        if (await (await conn.execute("SELECT count(*) FROM products")).fetchone())[0] == 0:
-            for p in PRODUCTS:
-                await conn.execute(
-                    """INSERT INTO products (slug, name, category, brand, price_vnd, old_price_vnd,
-                                             rating, stock, specs, description, image_url)
-                       VALUES (%(slug)s, %(name)s, %(category)s, %(brand)s, %(price_vnd)s,
-                               %(old_price_vnd)s, %(rating)s, %(stock)s, %(specs)s, %(description)s, %(image_url)s)
-                       ON CONFLICT (slug) DO NOTHING""",
-                    {**p, "specs": json.dumps(p["specs"])},
-                )
-        # DB đã seed từ trước khi có ảnh: bổ sung image_url cho sản phẩm mẫu còn trống
-        for slug, url in IMAGES.items():
-            await conn.execute(
-                "UPDATE products SET image_url = %s WHERE slug = %s AND image_url IS NULL", (url, slug)
-            )
-        if (await (await conn.execute("SELECT count(*) FROM orders")).fetchone())[0] == 0:
-            for o in ORDERS:
-                await conn.execute(
-                    "INSERT INTO orders (id, user_id, status, total_vnd, items) VALUES (%s, %s, %s, %s, %s)"
-                    " ON CONFLICT (id) DO NOTHING",
-                    (o["id"], o["user_id"], o["status"], o["total_vnd"], json.dumps(o["items"])),
-                )

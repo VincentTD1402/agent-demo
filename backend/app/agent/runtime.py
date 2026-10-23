@@ -1,15 +1,18 @@
-"""Khởi tạo tài nguyên dài hạn: Postgres checkpointer + store, công cụ MCP, đồ thị."""
+"""Khởi tạo tài nguyên dài hạn: Postgres checkpointer + store (pool riêng), công cụ MCP, đồ thị.
+
+Bảng LangGraph do bước bootstrap tạo; ở đây không có DDL nên role `app` đủ quyền.
+"""
 import asyncio
 import logging
-from contextlib import AsyncExitStack
 
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.store.postgres import AsyncPostgresStore
+from psycopg_pool import AsyncConnectionPool
 
 from app.agent.graph import build_graph
-from app.config import Settings
 from app.llm import build_chat_model, build_embeddings
+from app.settings.api import ApiSettings
 
 log = logging.getLogger(__name__)
 
@@ -26,15 +29,12 @@ async def _load_mcp_tools(url: str, attempts: int = 10):
             await asyncio.sleep(2)
 
 
-async def open_runtime(s: Settings, stack: AsyncExitStack):
-    """Mở kết nối, tạo bảng lần đầu, trả về đồ thị đã compile. Đóng qua `stack`."""
+async def open_runtime(s: ApiSettings, pool: AsyncConnectionPool):
+    """Trả về đồ thị đã compile. `pool` dành riêng cho LangGraph (autocommit, row_factory=dict_row)
+    và do caller đóng."""
     index = {"dims": s.embedding_dims, "embed": build_embeddings(s), "fields": ["text"]}
-    saver = await stack.enter_async_context(AsyncPostgresSaver.from_conn_string(s.database_url))
-    store = await stack.enter_async_context(
-        AsyncPostgresStore.from_conn_string(s.database_url, index=index)
-    )
-    await saver.setup()
-    await store.setup()
+    saver = AsyncPostgresSaver(pool)
+    store = AsyncPostgresStore(pool, index=index)
     tools = await _load_mcp_tools(s.mcp_server_url)
     log.info("Đã nạp công cụ MCP: %s", [t.name for t in tools])
     return build_graph(build_chat_model(s), tools, saver, store)

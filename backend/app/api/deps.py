@@ -2,12 +2,12 @@ import secrets
 
 from fastapi import Depends, Header, HTTPException, Request, status
 
-from app.config import Settings, get_settings
+from app.settings.api import ApiSettings, get_api_settings
 
 
 async def require_api_key(
     x_api_key: str | None = Header(default=None),
-    settings: Settings = Depends(get_settings),
+    settings: ApiSettings = Depends(get_api_settings),
 ) -> None:
     """Nếu API_KEY được cấu hình thì bắt buộc header X-API-Key khớp."""
     if not settings.api_key:
