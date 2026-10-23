@@ -7,9 +7,12 @@ async def search_products(
     conn, q: str | None = None, category: str | None = None,
     max_price: int | None = None, limit: int = 20,
 ) -> list[dict]:
-    where, params = ["TRUE"], []
+    where, params = ["is_active"], []
     if q:
-        where.append("(name ILIKE %s OR brand ILIKE %s OR description ILIKE %s)")
+        # Tên so khớp không phân biệt dấu bằng đúng biểu thức của index trigram ix_products_name_trgm
+        where.append(
+            "(immutable_unaccent(name) ILIKE immutable_unaccent(%s) OR brand ILIKE %s OR description ILIKE %s)"
+        )
         params += [f"%{q}%"] * 3
     if category:
         where.append("category = %s")
@@ -25,5 +28,5 @@ async def search_products(
 
 
 async def get_product(conn, slug: str) -> dict | None:
-    cur = await conn.execute(f"SELECT {_COLS} FROM products WHERE slug = %s", (slug,))
+    cur = await conn.execute(f"SELECT {_COLS} FROM products WHERE slug = %s AND is_active", (slug,))
     return await cur.fetchone()

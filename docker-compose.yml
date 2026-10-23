@@ -33,6 +33,20 @@ services:
       MCP_DB_PASSWORD: ${MCP_DB_PASSWORD:?set in .env}
       EMBEDDING_DIMS: ${EMBEDDING_DIMS:-1024}
       SEED_DEMO_DATA: ${SEED_DEMO_DATA:-false}
+      # Cho phép 0004/0005 xoá đơn/hoàn tiền dạng cũ khi DB còn dòng (alembic -x allow_destroy_legacy_orders=true). Chỉ dev.
+      ALLOW_DESTROY_LEGACY_ORDERS: ${ALLOW_DESTROY_LEGACY_ORDERS:-false}
+      # Khách demo + staff demo chỉ được tạo khi ENV=dev và có STAFF_DEMO_PASSWORD (không có mật khẩu mặc định)
+      ENV: ${ENV:-production}
+      STAFF_DEMO_PASSWORD: ${STAFF_DEMO_PASSWORD:-}
+      # Số liệu chính sách ghi vào KB mẫu (cùng nguồn với API)
+      SHIPPING_FEE_VND: ${SHIPPING_FEE_VND:-30000}
+      FREE_SHIPPING_FROM_VND: ${FREE_SHIPPING_FROM_VND:-500000}
+      REFUND_WINDOW_DAYS: ${REFUND_WINDOW_DAYS:-7}
+      # Chỉ `docker compose run --rm migrate python -m app.kb.reindex` dùng; bước migrate không gọi embedding
+      EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL:-}
+      EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-}
+      EMBEDDING_TIMEOUT_S: ${EMBEDDING_TIMEOUT_S:-30}
     depends_on:
       db:
         condition: service_healthy
@@ -49,6 +63,8 @@ services:
       MCP_PORT: "8001"
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       DB_POOL_MAX: ${DB_POOL_MAX:-5}
+      REFUND_WINDOW_DAYS: ${REFUND_WINDOW_DAYS:-7}
+      EMBEDDING_DIMS: ${EMBEDDING_DIMS:-1024}
     depends_on:
       migrate:
         condition: service_completed_successfully

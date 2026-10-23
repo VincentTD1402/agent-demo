@@ -7,7 +7,7 @@ from sqlalchemy import create_engine
 from app.db.base import Base
 from app.db.langgraph_setup import LANGGRAPH_TABLES
 from app.db.session import to_sqlalchemy_url
-from app.shop import models  # noqa: F401  (đăng ký model vào Base.metadata)
+from app.db import models  # noqa: F401  (đăng ký model vào Base.metadata)
 
 config = context.config
 target_metadata = Base.metadata

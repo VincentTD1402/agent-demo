@@ -52,14 +52,15 @@ def test_app_role_cannot_run_ddl(bootstrapped_db):
         assert conn.execute("SELECT count(*) FROM products").fetchone()[0] > 0
 
 
-def test_app_role_is_read_only_on_shop_tables_and_writes_langgraph_tables(bootstrapped_db):
+def test_app_role_has_no_delete_on_shop_tables_and_writes_langgraph_tables(bootstrapped_db):
     with psycopg.connect(role_url(bootstrapped_db, ROLE_APP), autocommit=True) as conn:
-        for table in ("products", "orders", "refunds"):
+        for table in ("products", "orders", "refunds", "users"):
             conn.execute(f"SELECT count(*) FROM {table}")  # noqa: S608 - tên bảng cố định
         for statement in (
-            "UPDATE products SET stock = stock",
+            "DELETE FROM products",
             "DELETE FROM orders",
-            "INSERT INTO refunds (order_id, amount_vnd, reason) VALUES ('x', 1, 'x')",
+            "DELETE FROM refunds",
+            "INSERT INTO kb_documents (slug, lang, title, category, body) VALUES ('x', 'vi', 'x', 'x', 'x')",
             "SELECT count(*) FROM alembic_version",
         ):
             with pytest.raises(psycopg.errors.InsufficientPrivilege):
@@ -74,19 +75,23 @@ def test_app_role_is_read_only_on_shop_tables_and_writes_langgraph_tables(bootst
 
 def test_mcp_role_has_minimum_privileges(bootstrapped_db):
     with psycopg.connect(role_url(bootstrapped_db, ROLE_MCP), autocommit=True) as conn:
-        assert conn.execute("SELECT count(*) FROM orders").fetchone()[0] > 0
+        assert conn.execute("SELECT count(*) FROM orders_for_agent").fetchone()[0] > 0
         for statement in (
             "UPDATE products SET stock = 0",
             "DELETE FROM orders",
+            "SELECT * FROM orders",
             "SELECT * FROM checkpoints",
             "CREATE TABLE rogue (id int)",
             "CREATE TEMP TABLE rogue_temp (id int)",
         ):
             with pytest.raises(psycopg.errors.InsufficientPrivilege):
                 conn.execute(statement)
-        # INSERT refunds được giữ có chủ đích cho tool issue_refund (xem MCP_GRANTS): tới được kiểm tra khoá ngoại
+        # INSERT refunds được giữ có chủ đích cho tool issue_refund (xem MCP_INSERT_COLUMNS): tới được kiểm tra khoá ngoại
         with pytest.raises(psycopg.errors.ForeignKeyViolation):
-            conn.execute("INSERT INTO refunds (order_id, amount_vnd, reason) VALUES ('no-such-order', 1, 'x')")
+            conn.execute(
+                "INSERT INTO refunds (order_id, user_id, source, requested_amount_vnd, reason, idempotency_key)"
+                " VALUES ('no-such-order', gen_random_uuid(), 'customer_request', 1, 'x', 'k')"
+            )
 
 
 async def _fake_chat_as_app_role(app_dsn: str) -> None:

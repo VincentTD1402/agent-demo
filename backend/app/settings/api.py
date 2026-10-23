@@ -4,6 +4,7 @@ from functools import lru_cache
 from pydantic import Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.settings.fixed_embedding_dims import require_fixed_embedding_dims
 from app.settings.secret_checks import require_fernet_key
 
 
@@ -44,6 +45,11 @@ class ApiSettings(BaseSettings):
     sa_pool_size: int = Field(default=5, ge=1)
     sa_max_overflow: int = Field(default=2, ge=0)
     langgraph_pool_max: int = Field(default=5, ge=1)
+
+    @field_validator("embedding_dims")
+    @classmethod
+    def _fixed_embedding_dims(cls, v: int) -> int:
+        return require_fixed_embedding_dims(v)
 
     @field_validator("payout_encryption_key")
     @classmethod

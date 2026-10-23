@@ -6,6 +6,9 @@ import psycopg
 # Namespace cho khoá của bước migrate/bootstrap; khoá theo thread hội thoại phải dùng namespace khác
 ADVISORY_NS_MIGRATE = 7101
 _MIGRATE_OBJECT_ID = 1
+# Namespace cho `python -m app.kb.reindex`: chỉ một lần reindex chạy tại một thời điểm
+ADVISORY_NS_REINDEX = 7102
+_REINDEX_OBJECT_ID = 1
 _POLL_INTERVAL_S = 0.5
 
 
@@ -24,3 +27,9 @@ def acquire_migrate_lock(conn: psycopg.Connection, timeout_s: float = 300.0) -> 
         if time.monotonic() >= deadline:
             raise TimeoutError(f"Không lấy được khoá bootstrap sau {timeout_s:.0f}s (tiến trình migrate khác bị kẹt?)")
         time.sleep(_POLL_INTERVAL_S)
+
+
+def try_reindex_lock(conn: psycopg.Connection) -> bool:
+    """Lấy khoá reindex không chờ (giữ tới khi đóng kết nối). False nếu một lần reindex khác đang chạy."""
+    row = conn.execute("SELECT pg_try_advisory_lock(%s, %s)", (ADVISORY_NS_REINDEX, _REINDEX_OBJECT_ID)).fetchone()
+    return bool(row[0])

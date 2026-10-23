@@ -16,16 +16,34 @@ mcp = FastMCP(
     stateless_http=True,
 )
 
-REFUND_POLICY = (
-    "Chính sách hoàn tiền: chỉ hoàn cho đơn đã giao (delivered), tối đa bằng tổng giá trị đơn, "
-    "mỗi đơn hoàn một lần. Đơn đang xử lý/đang giao hoặc đã huỷ không đủ điều kiện hoàn tiền."
-)
+def _refund_policy() -> str:
+    days = get_mcp_settings().refund_window_days
+    return (
+        f"Chính sách hoàn tiền: chỉ đơn đã giao (delivered) và đã thanh toán, trong {days} ngày kể từ ngày giao. "
+        "Số tiền tối đa bằng tiền hàng đã thanh toán, không gồm phí vận chuyển, trừ các khoản đã hoàn trước đó. "
+        "Mỗi đơn có tối đa một yêu cầu hoàn tiền đang xử lý. Yêu cầu được GỬI CHO NHÂN VIÊN duyệt: khi gửi xong "
+        "tiền CHƯA được hoàn, chỉ khi nhân viên duyệt và chi trả khách mới nhận tiền (không nói là đã hoàn). "
+        "Đơn đang xử lý/đang giao hoặc đã huỷ không đủ điều kiện hoàn tiền."
+    )
+
+
+# Nội dung báo khách theo trạng thái thật của yêu cầu hoàn tiền (không bao giờ nói "đã hoàn" khi chưa chi trả)
+_REQUEST_MESSAGES = {
+    "pending_staff": "Yêu cầu hoàn tiền đã gửi tới nhân viên để xem xét. Tiền CHƯA được hoàn; khách sẽ được báo khi có quyết định.",
+    "approved": "Yêu cầu hoàn tiền đã được nhân viên duyệt và đang chờ chi trả. Tiền CHƯA được hoàn.",
+    "paid_out": "Đơn này đã được chi trả hoàn tiền trước đó; không tạo thêm yêu cầu.",
+}
+
+
+def _refund_refused(key: str, message: str) -> dict:
+    return {"ok": False, "message_key": key, "message": message}
 
 
 @mcp.tool()
 async def lookup_order(order_id: str, user_id: str) -> dict:
     """Tra cứu đơn hàng (chỉ đọc). Dùng khi khách hỏi về trạng thái/chi tiết đơn.
-    Không dùng để hoàn tiền. Ví dụ: order_id="A100"."""
+    Không dùng để hoàn tiền. Ví dụ: order_id="A100". `refunded_vnd` chỉ có giá trị khi tiền ĐÃ chi trả cho khách;
+    `pending_refund_vnd` là số tiền đang chờ nhân viên duyệt/chi trả (chưa hoàn); `refund_status` là trạng thái yêu cầu."""
     order = await db.get_order(order_id.strip().upper(), user_id)
     if not order:
         return {"found": False, "message": f"Không tìm thấy đơn {order_id} của khách này."}
@@ -59,27 +77,53 @@ async def get_product_details(slug: str) -> dict:
 @mcp.tool()
 async def get_refund_policy() -> str:
     """Lấy chính sách hoàn tiền. Gọi trước khi quyết định đơn có đủ điều kiện hoàn tiền hay không."""
-    return REFUND_POLICY
+    return _refund_policy()
 
 
 @mcp.tool()
 async def issue_refund(order_id: str, user_id: str, amount_vnd: int, reason: str) -> dict:
-    """Hoàn tiền cho đơn hàng (HÀNH ĐỘNG KHÓ ĐẢO NGƯỢC, cần người duyệt).
-    Chỉ gọi sau khi đã lookup_order và xác nhận đơn đủ điều kiện theo chính sách.
-    Idempotent: gọi lại cùng order_id trả kết quả cũ, không hoàn lần hai."""
+    """GỬI YÊU CẦU hoàn tiền cho nhân viên duyệt (cần khách xác nhận). KHÔNG hoàn tiền ngay: kết quả `ok=true` với
+    `status="pending_staff"` nghĩa là yêu cầu đang chờ nhân viên, tiền CHƯA được hoàn; không được nói "đã hoàn".
+    Chỉ gọi sau khi đã lookup_order và xác nhận đơn đủ điều kiện theo chính sách (đã giao, trong hạn, số tiền <= tiền hàng).
+    Idempotent: gọi lại cho cùng đơn trả yêu cầu hiện có (`already_requested=true`), không tạo thêm."""
     order = await db.get_order(order_id.strip().upper(), user_id)
-    if not order:
-        return {"ok": False, "message": "Không tìm thấy đơn của khách này."}
+    basis = await db.get_refund_basis(order["id"], user_id) if order else None
+    if not order or not basis:
+        return _refund_refused("order_not_found", "Không tìm thấy đơn của khách này.")
+    live = basis["live_request"]
+    if live:
+        return _refund_result(order["id"], live, already_requested=True)
     if order["status"] != "delivered":
-        return {"ok": False, "message": f"Đơn ở trạng thái {order['status']}, không đủ điều kiện hoàn."}
-    if not 0 < amount_vnd <= order["total_vnd"]:
-        return {"ok": False, "message": f"Số tiền phải trong khoảng 1..{order['total_vnd']} VND."}
-    refund, is_new = await db.create_refund(order["id"], amount_vnd, reason)
+        return _refund_refused(
+            "order_not_delivered", f"Đơn ở trạng thái {order['status']}, không đủ điều kiện hoàn."
+        )
+    # Kiểm tra "đơn đã thanh toán" bổ sung khi bảng payments (thanh toán) có mặt; tới lúc đó đơn đã giao được coi là
+    # đã thu tiền, nên đơn COD chưa thu tiền chưa bị chặn ở đây.
+    window = get_mcp_settings().refund_window_days
+    days = basis["days_since_delivered"]
+    if days is None or days > window:
+        return _refund_refused("refund_window_expired", f"Đã quá hạn hoàn tiền {window} ngày kể từ ngày giao.")
+    cap = basis["goods_vnd"] - basis["committed_vnd"]
+    if not 0 < amount_vnd <= cap:
+        return _refund_refused(
+            "amount_out_of_range", f"Số tiền phải trong khoảng 1..{max(cap, 0)} VND (tiền hàng, không gồm phí ship)."
+        )
+    refund, is_new = await db.create_refund(order["id"], user_id, amount_vnd, reason)
+    return _refund_result(order["id"], refund, already_requested=not is_new)
+
+
+def _refund_result(order_id: str, request: dict, already_requested: bool) -> dict:
+    status = request["status"]
+    key = f"refund_request_already_{status}" if already_requested else "refund_request_submitted"
     return {
         "ok": True,
-        "already_refunded": not is_new,
-        "order_id": refund["order_id"],
-        "amount_vnd": refund["amount_vnd"],
+        "status": status,
+        "already_requested": already_requested,
+        "request_id": str(request["id"]),
+        "order_id": order_id,
+        "amount_vnd": request["amount_vnd"],
+        "message_key": key,
+        "message": _REQUEST_MESSAGES[status],
     }
 
 

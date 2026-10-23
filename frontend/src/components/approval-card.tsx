@@ -8,7 +8,7 @@ type Props = {
   onDecide: (approved: boolean) => void;
 };
 
-const LABELS: Record<string, string> = { issue_refund: "Hoàn tiền đơn hàng" };
+const LABELS: Record<string, string> = { issue_refund: "Gửi yêu cầu hoàn tiền (nhân viên sẽ duyệt)" };
 
 // Cổng người duyệt: hiện hành động rủi ro cao mà agent đang chờ xác nhận
 export function ApprovalCard({ actions, disabled, onDecide }: Props) {

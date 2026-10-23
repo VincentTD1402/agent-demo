@@ -55,7 +55,7 @@ async def test_refund_pauses_then_executes_on_approval():
     g = make([
         call("lookup_order", {"order_id": "A100", "user_id": "hacker"}, "1"),
         call("issue_refund", {"order_id": "A100", "user_id": "hacker", "amount_vnd": 890000, "reason": "lỗi"}, "2"),
-        AIMessage("Đã hoàn tiền."),
+        AIMessage("Đã gửi yêu cầu hoàn tiền, chờ nhân viên duyệt."),
     ])
     r = await g.ainvoke({"messages": [("user", "hoàn tiền A100")]}, cfg())
     assert "__interrupt__" in r and REFUNDS == []  # chưa có tác dụng phụ trước khi duyệt
@@ -63,7 +63,7 @@ async def test_refund_pauses_then_executes_on_approval():
 
     r = await g.ainvoke(Command(resume={"approved": True}), cfg())
     assert REFUNDS == [("A100", "u1", 890000)]  # user_id bị ép về phiên, không tin LLM
-    assert r["messages"][-1].content == "Đã hoàn tiền."
+    assert r["messages"][-1].content == "Đã gửi yêu cầu hoàn tiền, chờ nhân viên duyệt."
 
 
 async def test_rejection_skips_refund():
@@ -83,3 +83,10 @@ async def test_thread_metadata_records_owner():
     await g.ainvoke({"messages": [("user", "hi")]}, cfg(thread="own", user="alice"))
     snap = await g.aget_state({"configurable": {"thread_id": "own"}})
     assert snap.metadata["user_id"] == "alice"
+
+
+def test_system_prompt_says_refund_is_only_a_request_to_staff():
+    from app.agent.prompts import SYSTEM_PROMPT
+
+    assert "pending_staff" in SYSTEM_PROMPT and "CHƯA được hoàn" in SYSTEM_PROMPT
+    assert "tuyệt đối không nói" in SYSTEM_PROMPT and "pending_refund_vnd" in SYSTEM_PROMPT

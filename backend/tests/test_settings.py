@@ -102,3 +102,25 @@ def test_migrate_derives_role_dsn_and_database_name():
 def test_mcp_requires_database_url():
     with pytest.raises(ValidationError):
         McpSettings(_env_file=None)
+
+
+@pytest.mark.parametrize("dims", [768, 1536, 0])
+def test_every_process_rejects_embedding_dims_other_than_the_schema_size(dims):
+    key = Fernet.generate_key().decode()
+    with pytest.raises(ValidationError, match="1024"):
+        ApiSettings(**API_KWARGS, payout_encryption_key=key, embedding_dims=dims)
+    with pytest.raises(ValidationError, match="1024"):
+        McpSettings(_env_file=None, database_url="postgresql://u:p@h/d", embedding_dims=dims)
+    with pytest.raises(ValidationError, match="1024"):
+        _migrate(embedding_dims=dims)
+    assert _migrate(embedding_dims=1024).embedding_dims == 1024
+    assert McpSettings(_env_file=None, database_url="postgresql://u:p@h/d").embedding_dims == 1024
+
+
+def test_mcp_carries_refund_window_and_migrate_guard_is_off_by_default():
+    assert McpSettings(_env_file=None, database_url="postgresql://u:p@h/d").refund_window_days == 7
+    assert McpSettings(_env_file=None, database_url="postgresql://u:p@h/d", refund_window_days=3).refund_window_days == 3
+    with pytest.raises(ValidationError):
+        McpSettings(_env_file=None, database_url="postgresql://u:p@h/d", refund_window_days=0)
+    assert _migrate().allow_destroy_legacy_orders is False
+    assert _migrate(allow_destroy_legacy_orders=True).allow_destroy_legacy_orders is True

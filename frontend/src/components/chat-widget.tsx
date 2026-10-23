@@ -14,8 +14,14 @@ const SUGGESTIONS = [
   "Chính sách hoàn tiền thế nào?",
 ];
 
-// Chưa có đăng nhập: user_id đặt ở trình duyệt (mặc định khách demo có sẵn đơn mẫu)
-const initialUserId = () => localStorage.getItem("shopbot_user_id") ?? "demo-user";
+// Chưa có đăng nhập: user_id (UUID) đặt ở trình duyệt; mặc định là khách demo có sẵn đơn mẫu (cố định trong seed)
+const DEMO_USER_ID = "11111111-1111-4111-8111-111111111111";
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const initialUserId = () => {
+  const stored = localStorage.getItem("shopbot_user_id");
+  // Giá trị cũ dạng "demo-user" (trước khi user_id là UUID) không còn khớp khách nào: dùng lại mặc định
+  return stored && UUID_PATTERN.test(stored) ? stored : DEMO_USER_ID;
+};
 const clock = (t: number) => new Date(t).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
 
 function Avatar() {
@@ -87,7 +93,7 @@ export function ChatWidget() {
 
   function onDecide(approved: boolean) {
     if (!threadId) return;
-    const text = approved ? "Tôi đồng ý hoàn tiền" : "Tôi không đồng ý hoàn tiền";
+    const text = approved ? "Tôi đồng ý gửi yêu cầu hoàn tiền" : "Tôi không đồng ý gửi yêu cầu hoàn tiền";
     setMessages((m) => [...m, { role: "user", text, at: Date.now() }]);
     void run(() => resumeThread(threadId, userId, approved));
   }

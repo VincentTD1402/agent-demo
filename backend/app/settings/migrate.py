@@ -3,7 +3,10 @@ from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from sqlalchemy.engine import make_url
 
-from app.settings.secret_checks import require_dsn_safe_identifier, require_dsn_safe_password
+from app.settings.fixed_embedding_dims import require_fixed_embedding_dims
+from app.settings.secret_checks import (
+    require_dsn_safe_identifier, require_dsn_safe_password, require_strong_secret,
+)
 
 ROLE_MIGRATOR = "shopbot_migrator"
 ROLE_APP = "shopbot_app"
@@ -26,11 +29,44 @@ class MigrateSettings(BaseSettings):
     postgres_password: SecretStr | None = None
     postgres_db: str | None = None
 
-    # Kích thước vector của bảng store LangGraph
-    embedding_dims: int = Field(default=1024, ge=1)
-    # Nạp sản phẩm/đơn mẫu khi bảng còn trống: chỉ cho dev, mặc định tắt
+    # Kích thước vector của bảng store LangGraph và cột embedding
+    embedding_dims: int = 1024
+    # Cho phép revision 0004/0005 xoá đơn/hoàn tiền cũ (dữ liệu dạng trước Alembic); mặc định từ chối nếu có dòng.
+    # Bootstrap chuyển thành `alembic -x allow_destroy_legacy_orders=true`. Chỉ bật có chủ đích trên DB dev.
+    allow_destroy_legacy_orders: bool = False
+    # Nạp sản phẩm/đơn/KB mẫu khi bảng còn trống: chỉ cho dev, mặc định tắt
     seed_demo_data: bool = False
+    # Tài khoản staff demo chỉ được tạo khi ENV=dev và có mật khẩu (không có mật khẩu mặc định)
+    env: str = "production"
+    staff_demo_password: SecretStr | None = None
+    # Số liệu chính sách ghi vào KB mẫu: cùng nguồn cấu hình với API
+    shipping_fee_vnd: int = Field(default=30000, ge=0)
+    free_shipping_from_vnd: int = Field(default=500000, ge=0)
+    refund_window_days: int = Field(default=7, ge=1)
+    # `python -m app.kb.reindex` (chạy riêng, không thuộc cổng migrate); base_url trống thì reindex báo lỗi rõ ràng
+    embedding_model: str = ""
+    embedding_base_url: str = ""
+    embedding_api_key: SecretStr | None = None
+    embedding_timeout_s: float = Field(default=30.0, gt=0)
     log_level: str = "INFO"
+
+    @field_validator("embedding_dims")
+    @classmethod
+    def _fixed_embedding_dims(cls, v: int) -> int:
+        return require_fixed_embedding_dims(v)
+
+    @field_validator("staff_demo_password", mode="before")
+    @classmethod
+    def _blank_staff_demo_password_is_unset(cls, v):
+        """compose chuyển biến trống thành chuỗi rỗng: coi như chưa đặt."""
+        return v or None
+
+    @field_validator("staff_demo_password")
+    @classmethod
+    def _strong_staff_demo_password(cls, v: SecretStr | None) -> SecretStr | None:
+        if v is not None:
+            require_strong_secret(v.get_secret_value(), "STAFF_DEMO_PASSWORD")
+        return v
 
     @field_validator("migrator_db_password", "app_db_password", "mcp_db_password", "postgres_password")
     @classmethod

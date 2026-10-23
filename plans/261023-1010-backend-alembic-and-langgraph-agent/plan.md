@@ -39,7 +39,7 @@ migrate (one-shot, role migrator): alembic upgrade → tạo role/quyền → la
 |-------|------|--------|-----|-----------|--------|
 | 1 | [Preflight and decisions](./phase-01-preflight-and-decisions.md) (cổng go/no-go) | 2d | M0 | - | Completed (M0 GO, 2026-10-23) |
 | 2 | [Alembic and SQLAlchemy foundation](./phase-02-alembic-and-sqlalchemy-foundation.md) | 2.5d | M1 | 1 | Completed (2026-10-23) |
-| 3 | [Schema models and seed](./phase-03-schema-models-and-seed.md) | 5d | M1/M2 | 2 | Pending |
+| 3 | [Schema models and seed](./phase-03-schema-models-and-seed.md) | 5d | M1/M2 | 2 | Completed (2026-10-23) |
 | 4 | [Auth and RBAC](./phase-04-auth-and-rbac.md) | 5d | M1 | 3 | Pending |
 | 5 | [MCP server v2](./phase-05-mcp-server-v2.md) | 3d | M1 | 3 | Pending |
 | 6 | [Agent graph v2](./phase-06-agent-graph-v2.md) | 6d | M1/M2 | 1, 5 | Pending |

@@ -83,12 +83,42 @@ PRODUCTS = [
        "Pin dự phòng mỏng nhẹ, sạc nhanh 22.5W."),
 ]
 
-# Đơn mẫu để thử luồng tra đơn / hoàn tiền (khách demo-user)
-ORDERS = [
-    {"id": "A100", "user_id": "demo-user", "status": "delivered", "total_vnd": 5490000,
-     "items": [{"name": "Tai nghe AirPods Pro 2 USB-C", "qty": 1}]},
-    {"id": "A101", "user_id": "demo-user", "status": "shipped", "total_vnd": 980000,
-     "items": [{"name": "Củ sạc nhanh Anker 20W USB-C", "qty": 2}, {"name": "Pin dự phòng Anker 10000mAh", "qty": 1}]},
-    {"id": "B200", "user_id": "other-user", "status": "delivered", "total_vnd": 7490000,
-     "items": [{"name": "Tai nghe chụp tai Sony WH-1000XM5", "qty": 1}]},
+# ---- Fixture cố định cho demo/e2e: id không đổi giữa các lần seed để test và frontend tham chiếu được ----
+DEMO_CUSTOMER_ID = "11111111-1111-4111-8111-111111111111"
+OTHER_CUSTOMER_ID = "22222222-2222-4222-8222-222222222222"
+STAFF_DEMO_ID = "33333333-3333-4333-8333-333333333333"
+STAFF_DEMO_EMAIL = "staff@shopbot.local"
+
+# Khách mẫu chưa có mật khẩu (password_hash NULL): chưa đăng nhập được cho tới khi có luồng đặt mật khẩu
+CUSTOMERS = [
+    {"id": DEMO_CUSTOMER_ID, "email": "demo@shopbot.local", "full_name": "Khách Demo", "phone": "0900000001"},
+    {"id": OTHER_CUSTOMER_ID, "email": "other@shopbot.local", "full_name": "Khách Khác", "phone": "0900000002"},
 ]
+
+SHIPPING_ADDRESS = {
+    "name": "Khách Demo", "phone": "0900000001", "line1": "12 Nguyễn Huệ", "ward": "Bến Nghé",
+    "district": "Quận 1", "city": "TP. Hồ Chí Minh",
+}
+
+ORDER_REFUND_ELIGIBLE_ID = "A100"  # đã giao 2 ngày trước: còn trong hạn hoàn tiền
+ORDER_SHIPPED_ID = "A101"  # đang giao
+ORDER_COD_ID = "A102"  # thanh toán khi nhận hàng, đang xử lý
+ORDER_OTHER_CUSTOMER_ID = "B200"  # của khách khác: kiểm tra khách không xem được đơn người khác
+
+# items: (slug sản phẩm, số lượng). Tiền hàng lấy từ giá hiện tại của sản phẩm mẫu; phí ship tính theo cấu hình
+# (SHIPPING_FEE_VND, FREE_SHIPPING_FROM_VND). days_ago tính từ lúc seed.
+ORDERS = [
+    {"id": ORDER_REFUND_ELIGIBLE_ID, "user_id": DEMO_CUSTOMER_ID, "status": "delivered",
+     "items": [("airpods-pro-2-usb-c", 1)], "created_days_ago": 5, "delivered_days_ago": 2,
+     "carrier": "GHN", "tracking_code": "GHN100000001"},
+    {"id": ORDER_SHIPPED_ID, "user_id": DEMO_CUSTOMER_ID, "status": "shipped",
+     "items": [("anker-sac-20w", 2), ("pin-du-phong-anker-10000", 1)], "created_days_ago": 1,
+     "delivered_days_ago": None, "carrier": "GHN", "tracking_code": "GHN100000002"},
+    {"id": ORDER_COD_ID, "user_id": DEMO_CUSTOMER_ID, "status": "processing",
+     "items": [("anker-sac-20w", 1)], "created_days_ago": 0, "delivered_days_ago": None,
+     "carrier": None, "tracking_code": None},
+    {"id": ORDER_OTHER_CUSTOMER_ID, "user_id": OTHER_CUSTOMER_ID, "status": "delivered",
+     "items": [("sony-wh-1000xm5", 1)], "created_days_ago": 6, "delivered_days_ago": 3,
+     "carrier": "GHN", "tracking_code": "GHN100000003"},
+]
+
