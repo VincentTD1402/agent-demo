@@ -1,4 +1,5 @@
-# Chạy: docker compose up -d --build   (cần file .env, xem .env.example)
+# Chạy: docker compose up -d --build   (cần file .env: chạy scripts/init-env.sh hoặc scripts/init-env.ps1 để tạo từ .env.example)
+# Thứ tự khởi động: db -> migrate -> (mcp-server, ingest) -> api -> frontend. Xem docs/deployment-guide.md.
 # Các model (LLM / embedding / reranker) chạy ngoài compose, backend gọi qua host.docker.internal.
 services:
   chatbot-db-prod:
@@ -42,6 +43,22 @@ services:
         condition: service_healthy
     networks: [internal]
 
+  # Chạy một lần mỗi lần `up`: nạp tài liệu trong ./documents (chính sách, mô tả sản phẩm) vào pgvector cho chatbot.
+  # Idempotent (file không đổi thì bỏ qua). Lỗi (vd endpoint embedding chưa lên) không chặn api; nạp lại: docker compose run --rm ingest
+  ingest:
+    build: .
+    restart: "no"
+    command: ["python", "-m", "app.documents.ingest_cli"]
+    env_file: .env
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./documents:/srv/documents:ro
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    networks: [internal]
+
   # MCP server: tool giỏ hàng/đơn/hoàn tiền cho agent. Chỉ nằm trong mạng nội bộ (không publish cổng),
   # agent gọi tới với Bearer MCP_API_KEY; từ chối khởi động nếu thiếu khoá.
   mcp-server:
@@ -74,12 +91,20 @@ services:
       - ./documents:/srv/documents:ro
     ports:
       - "${API_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
     depends_on:
       migrate:
         condition: service_completed_successfully
       chatbot-db-prod:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      # Chờ MCP server để câu hỏi mua sắm đầu tiên đã có tool (thiếu MCP_API_KEY thì compose báo lỗi ngay ở đây)
+      mcp-server:
         condition: service_healthy
     networks: [internal]
 
@@ -91,8 +116,14 @@ services:
       API_KEY: ${API_KEY:-}
     ports:
       - "${FRONTEND_PORT:-3000}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     networks: [internal]
 
 volumes:
