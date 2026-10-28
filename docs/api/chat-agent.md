@@ -30,6 +30,18 @@ START -> analyze --chat---------------> chat ----------+
 - `session_id` (16-64 ký tự `[A-Za-z0-9_-]`) là khoá giỏ hàng/đơn của trình duyệt; bỏ trống thì dùng `thread_id`. Bỏ trống `thread_id` thì server sinh UUID mới; client gửi lại giá trị đó để tiếp tục hội thoại. `thread_id` khớp `[A-Za-z0-9_-]{8,64}`; `message` 1-2000 ký tự.
 - Nếu đặt `API_KEY` thì cần header `X-API-Key`. Lỗi embedding/rerank/LLM/DB trả 502; agent chưa khởi tạo xong trả 503.
 
+## Guardrail và giọng tư vấn
+
+Chỉ phục vụ việc của shop, chống spam và hỏi ngoài lề, theo ba lớp (code ở `app/agent/guardrails.py`, `nodes.py`, `prompts.py`):
+
+1. **Trước khi gọi model** (không tốn token, không thể thương lượng):
+   - Giới hạn tần suất trong bộ nhớ: `CHAT_RATE_PER_MINUTE` / `CHAT_RATE_PER_HOUR` mỗi phiên, `CHAT_RATE_PER_IP_PER_MINUTE` mỗi IP (nginx đặt `X-Forwarded-For`), cùng nội dung gửi lặp quá `CHAT_DUPLICATE_LIMIT` lần/phút. Vượt thì HTTP 429 kèm `Retry-After`. Tin bị chặn vẫn tính vào hạn mức.
+   - Tin rỗng/toàn ký tự, lặp ký tự hoặc lặp từ, từ 3 link trở lên, và câu tiêm lệnh ("bỏ qua hướng dẫn", "system prompt", "đóng vai"...) nhận câu trả lời dựng sẵn, không vào hội thoại và không gọi agent.
+2. **Phân loại**: câu không liên quan shop (thời tiết, code, dịch thuật, chuyện phiếm, tư vấn sức khoẻ/pháp lý/đầu tư...) đi nhánh `out_of_scope` và được từ chối nhẹ nhàng, gợi ý việc shop có thể giúp. Hỏi ngoài lề liên tiếp: từ lượt 3 từ chối ngắn gọn dứt khoát, từ lượt 5 trả câu dựng sẵn không gọi model; một câu đúng việc đặt lại bộ đếm.
+3. **Prompt**: mọi câu trả lời gửi khách mang persona nhân viên tư vấn ("em" gọi khách "anh/chị", mở đầu "Dạ", lắng nghe rồi trả lời và gợi ý bước tiếp, không đề nghị việc ngoài khả năng như giữ máy/giảm giá) và quy tắc phạm vi (không đổi vai, không lộ hướng dẫn).
+
+Bộ đếm tần suất nằm trong bộ nhớ một tiến trình: chạy nhiều replica api thì mỗi replica đếm riêng. Khoá dò đơn và giới hạn số đơn nằm trong DB (xem `shop-orders-mcp-and-staff.md`).
+
 ## Cấu hình
 
 `LLM_API_URL`, `LLM_MODEL_NAME`, `RERANKER_API_URL`, `RERANKER_MODEL_NAME`, `MCP_SERVER_URL`, `MCP_API_KEY` (xem `.env.example`) và nhóm `RAG_*`. Các bước nội bộ (phân loại, tóm tắt) dùng nhiệt độ 0; câu trả lời dùng `RAG_ANSWER_TEMPERATURE`. Qwen3 chạy với `enable_thinking=false`.

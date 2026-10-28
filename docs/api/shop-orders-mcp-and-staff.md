@@ -49,9 +49,15 @@ Migration `0004`: `carts`, `orders`, `order_items`, `refund_requests` và 3 đơ
 
 Chạy local: đặt `MCP_API_KEY`, `STAFF_API_KEY` trong `.env` rồi `docker compose up -d --build`. Test DB: `TEST_DATABASE_URL="host=... port=... user=... password=... dbname=postgres"` (Postgres có pgvector và quyền tạo database); không đặt thì các test cần DB bị bỏ qua.
 
+## Chống dò tìm và lạm dụng
+
+- Tra cứu đơn (tra, huỷ, thanh toán, kiểm tra/gửi hoàn tiền) sai mã đơn hoặc SĐT: ghi vào `lookup_failures`. Quá `LOOKUP_MAX_FAILURES_PER_CODE` (5) lần theo một mã đơn hoặc `LOOKUP_MAX_FAILURES_PER_PHONE` (10) lần theo một SĐT trong `LOOKUP_WINDOW_MINUTES` (15) phút thì khoá tạm, kể cả khi nhập đúng. Đổi lại người thật nhập sai nhiều lần cũng bị khoá vài phút; thông báo hướng dẫn liên hệ nhân viên. Lần tra đúng không bị tính.
+- Mỗi phiên tối đa `MAX_ORDERS_PER_SESSION_PER_HOUR` (5) đơn mỗi giờ, tránh spam đơn giữ chỗ tồn kho.
+- Chat có giới hạn tần suất và lọc tin rác riêng (xem `chat-agent.md`).
+
 ## Giới hạn hiện tại
 
 - Thanh toán là giả lập (luôn thành công); thay bằng cổng thật bằng cách cài đặt `PaymentGateway` trong `app/shop/payments.py`.
-- Mã đơn tuần tự và SĐT 10 số chưa có giới hạn tần suất dò tìm.
+- Giới hạn tần suất chat nằm trong bộ nhớ một tiến trình, không chia sẻ giữa nhiều replica.
 - Hành vi gọi tool phụ thuộc model: có lúc model bỏ qua việc gọi lại `lookup_order` và trả lời theo kết quả cũ (đã siết prompt nhưng chưa loại trừ hoàn toàn).
 - Tên các tool có thể bị model tiết lộ khi bị hỏi; an toàn dựa trên kiểm tra phía server, không dựa vào việc giấu prompt.

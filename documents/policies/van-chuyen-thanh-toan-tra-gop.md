@@ -9,7 +9,7 @@ ShopMobile giao nhanh trong 2 giờ cho khách ở nội thành TP. Hồ Chí Mi
 - Đơn hàng từ 500.000₫ trở lên: miễn phí vận chuyển.
 - Đơn hàng dưới 500.000₫: phí vận chuyển 30.000₫.
 
-Ví dụ: một củ sạc Anker 20W giá 290.000₫ chịu phí ship 30.000₫; mua thêm pin dự phòng Anker 10000mAh (690.000₫) thì tổng đơn vượt 500.000₫ và được miễn phí vận chuyển.
+Ví dụ: đơn hàng 290.000₫ chịu phí ship 30.000₫; đơn 980.000₫ được miễn phí vận chuyển.
 
 ## Theo dõi đơn hàng
 
