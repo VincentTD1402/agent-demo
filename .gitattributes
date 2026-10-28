@@ -1,0 +1,2 @@
+# Script shell phải giữ LF kể cả khi checkout trên Windows (CRLF làm bash báo lỗi)
+*.sh text eol=lf
