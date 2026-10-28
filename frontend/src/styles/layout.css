@@ -100,3 +100,23 @@
 .refund-card { border: 1px solid var(--line); border-radius: var(--radius-s); padding: 12px 14px; display: grid; gap: 8px; }
 .refund-card dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; font-size: 14px; }
 .refund-card dt { color: var(--ink-2); } .refund-card dd { margin: 0; }
+
+/* Quản trị sản phẩm (/nhan-vien, tab Sản phẩm) */
+.staff-tabs { display: flex; gap: 8px; }
+.staff-tabs button { border: 1px solid var(--line); background: #fff; border-radius: 99px; padding: 8px 18px; font-weight: 700; }
+.staff-tabs button[aria-selected=true] { background: var(--ink); color: #fff; border-color: var(--ink); }
+.product-table { display: grid; gap: 8px; }
+.product-row-admin { display: flex; align-items: center; gap: 12px; border: 1px solid var(--line); border-radius: var(--radius-s); padding: 8px 12px; }
+.product-row-admin .grow { display: grid; min-width: 0; } .product-row-admin small { display: block; }
+.price-cell { min-width: 120px; text-align: right; font-weight: 700; } .price-cell small { font-weight: 400; text-decoration: line-through; color: var(--ink-3); }
+.thumb { width: 44px; height: 44px; object-fit: contain; border-radius: 8px; background: var(--bg); flex: none; } .thumb.empty { display: inline-block; }
+.thumb.big { width: 96px; height: 96px; }
+.stock-badge { font-size: 13px; font-weight: 700; padding: 3px 10px; border-radius: 99px; background: #e7f6ee; color: var(--ok); white-space: nowrap; }
+.stock-badge.low { background: #fff4d6; color: #8a6100; } .stock-badge.out { background: #fde8e7; color: var(--price); }
+.product-form { display: grid; gap: 14px; }
+.product-form .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+.product-form label { display: grid; gap: 4px; font-size: 13px; color: var(--ink-2); }
+.product-form textarea, .product-form select { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+.product-form fieldset { border: 1px solid var(--line); border-radius: var(--radius-s); padding: 12px; display: grid; gap: 8px; }
+.product-form .staff-row input { flex: 1 1 180px; }
+.image-row { align-items: flex-start; } .btn.danger { color: var(--price); margin-left: auto; }

@@ -127,38 +127,3 @@ export const fetchCart = () => cartCall("", "GET");
 export const addCartItem = (slug: string, qty: number) => cartCall("/items", "POST", { slug, qty });
 export const setCartItemQty = (slug: string, qty: number) => cartCall(`/items/${encodeURIComponent(slug)}`, "PUT", { qty });
 export const removeCartItem = (slug: string) => cartCall(`/items/${encodeURIComponent(slug)}`, "DELETE");
-
-// ---- API nhân viên (header X-Staff-Key) ----
-export type PendingRefund = {
-  id: number;
-  order_code: string;
-  customer_name: string;
-  phone: string;
-  payment_method: string;
-  payment_status: string;
-  order_total_vnd: number;
-  reason_code: string;
-  details: string;
-  item_slugs: string[] | null;
-  amount_vnd: number;
-  created_at: string;
-};
-
-async function staffCall<T>(key: string, path: string, method = "GET", body?: unknown): Promise<T> {
-  const res = await fetch(`/api/staff${path}`, {
-    method,
-    headers: { "Content-Type": "application/json", "X-Staff-Key": key },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const detail = await res.json().then((j) => j.detail).catch(() => null);
-    throw new Error(typeof detail === "string" ? detail : `Lỗi ${res.status}`);
-  }
-  return res.json() as Promise<T>;
-}
-
-export const staffPendingRefunds = (key: string) => staffCall<PendingRefund[]>(key, "/refunds");
-export const staffDecideRefund = (key: string, id: number, approve: boolean, note: string) =>
-  staffCall<{ status: string }>(key, `/refunds/${id}/decision`, "POST", { approve, note });
-export const staffSetOrderStatus = (key: string, code: string, status: "shipped" | "delivered") =>
-  staffCall<{ code: string; status: string }>(key, `/orders/${encodeURIComponent(code)}/status`, "POST", { status });
