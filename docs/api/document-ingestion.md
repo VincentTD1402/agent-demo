@@ -4,6 +4,8 @@ Nạp tài liệu vào Postgres/pgvector: trích văn bản -> chia chunk -> emb
 
 Định dạng: `.txt`, `.md`, `.pdf` (cần có text, không OCR), `.docx` (đổi sang Markdown: heading, list, bảng). `.md`/`.docx` chia chunk theo heading (`#`..`###`) rồi theo `EMBEDDING_CHUNK_SIZE`/`EMBEDDING_CHUNK_OVERLAP`; chunk tiếp theo của một mục được gắn lại đường dẫn heading.
 
+**Tự động khi chạy compose**: service `ingest` (`python -m app.documents.ingest_cli`) nạp cả thư mục `./documents` mỗi lần `docker compose up`; nạp lại sau khi sửa tài liệu: `docker compose run --rm ingest` (tuỳ chọn `--language vi|ko`, `--subfolder`).
+
 Nếu đặt `API_KEY` thì mọi endpoint dưới đây cần header `X-API-Key`.
 
 | Endpoint | Mô tả |
