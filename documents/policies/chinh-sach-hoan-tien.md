@@ -25,16 +25,16 @@ Các trường hợp sau không được hoàn tiền:
 
 ## Cách yêu cầu hoàn tiền
 
-Khách có thể yêu cầu hoàn tiền bằng cách chat với trợ lý AI của ShopMobile và cung cấp mã đơn hàng (ví dụ A100) cùng lý do. Trợ lý sẽ kiểm tra đơn hàng có còn trong hạn 7 ngày và có đúng chủ đơn hay không, rồi tạo yêu cầu hoàn tiền. Mọi yêu cầu hoàn tiền đều cần nhân viên ShopMobile xem xét và phê duyệt trước khi tiền được hoàn. Trợ lý AI không tự quyết định hoàn tiền thay nhân viên.
+Khách có thể yêu cầu hoàn tiền bằng cách chat với trợ lý AI của ShopMobile và cung cấp mã đơn hàng (ví dụ SM000100), số điện thoại dùng khi đặt hàng cùng lý do. Trợ lý sẽ kiểm tra đơn hàng có còn trong hạn 7 ngày và có đúng chủ đơn hay không, rồi tạo yêu cầu hoàn tiền. Mọi yêu cầu hoàn tiền đều cần nhân viên ShopMobile xem xét và phê duyệt trước khi tiền được hoàn. Trợ lý AI không tự quyết định hoàn tiền thay nhân viên.
 
-Khách chỉ được yêu cầu hoàn tiền cho đơn hàng của chính mình. Khi cần, khách có thể gửi thêm ảnh hoặc video tình trạng sản phẩm để nhân viên xử lý nhanh hơn.
+Mã đơn và số điện thoại đặt hàng phải khớp nhau; khách chỉ yêu cầu được hoàn tiền cho đơn của chính mình. Khi cần, khách có thể gửi thêm ảnh hoặc video tình trạng sản phẩm để nhân viên xử lý nhanh hơn.
 
 ## Hình thức và thời gian hoàn tiền
 
 Tiền được hoàn về đúng phương thức khách đã thanh toán:
 
 - Thanh toán bằng thẻ hoặc ví điện tử: hoàn về thẻ hoặc ví đó.
-- Thanh toán khi nhận hàng (COD): hoàn qua chuyển khoản vào tài khoản ngân hàng khách cung cấp.
+- Thanh toán khi nhận hàng (COD): hoàn qua chuyển khoản. Nhân viên sẽ gọi vào số điện thoại đặt hàng để xác nhận tài khoản nhận tiền; khách không gửi số tài khoản ngân hàng qua khung chat.
 
 Sau khi nhân viên phê duyệt, tiền về tài khoản trong khoảng 3 đến 5 ngày làm việc (thời gian thực tế phụ thuộc ngân hàng). Thông tin tài khoản nhận tiền của khách được bảo mật và chỉ dùng để hoàn tiền.
 

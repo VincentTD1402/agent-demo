@@ -13,15 +13,15 @@ Ví dụ: một củ sạc Anker 20W giá 290.000₫ chịu phí ship 30.000₫;
 
 ## Theo dõi đơn hàng
 
-Các trạng thái đơn hàng: Đang xử lý (processing), Đang giao (shipped), Đã giao (delivered), Đã hủy. Khách có thể hỏi trợ lý AI "đơn A101 đến đâu rồi" kèm mã đơn để biết trạng thái và mã vận đơn. Trợ lý chỉ tra cứu được đơn hàng của chính khách đang đăng nhập.
+Các trạng thái đơn hàng: Đang xử lý (processing), Đang giao (shipped), Đã giao (delivered), Đã hủy. Khách có thể hỏi trợ lý AI "đơn SM000101 đến đâu rồi" kèm mã đơn và số điện thoại dùng khi đặt hàng để biết trạng thái. Trợ lý chỉ tra cứu khi mã đơn và số điện thoại khớp nhau; trợ lý cũng có thể thêm sản phẩm vào giỏ, đặt hàng (sau khi khách xác nhận) và thanh toán trực tuyến giúp khách.
 
 ## Hủy đơn
 
-Khách có thể hủy đơn khi đơn còn ở trạng thái "Đang xử lý" và chưa bàn giao cho đơn vị vận chuyển. Đơn đã giao hoặc đang giao không hủy được; nếu cần trả hàng, áp dụng chính sách hoàn tiền trong 7 ngày kể từ ngày nhận.
+Khách có thể hủy đơn khi đơn còn ở trạng thái "Đang xử lý" và chưa bàn giao cho đơn vị vận chuyển. Đơn đã thanh toán trực tuyến cần nhân viên hỗ trợ hủy và hoàn tiền. Đơn đã giao hoặc đang giao không hủy được; nếu cần trả hàng, áp dụng chính sách hoàn tiền trong 7 ngày kể từ ngày nhận.
 
 ## Phương thức thanh toán
 
-ShopMobile hỗ trợ: thanh toán khi nhận hàng (COD), chuyển khoản ngân hàng, thẻ ATM nội địa, thẻ Visa/Mastercard và ví điện tử. Giá trên website đã bao gồm VAT. Với COD, khách kiểm tra hàng khi nhận và thanh toán cho nhân viên giao hàng.
+ShopMobile hỗ trợ hai cách thanh toán khi đặt hàng: thanh toán khi nhận hàng (COD) và thanh toán trực tuyến (trả ngay lúc đặt). Giá trên website đã bao gồm VAT. Với COD, khách kiểm tra hàng khi nhận và thanh toán cho nhân viên giao hàng.
 
 ## Trả góp 0%
 
