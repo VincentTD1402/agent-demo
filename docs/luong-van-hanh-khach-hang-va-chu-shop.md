@@ -55,7 +55,7 @@ Giới hạn để chống spam: nhắn quá nhanh (10 tin/phút) sẽ được 
 
 ## 3. Luồng của chủ shop
 
-### Duyệt hoàn tiền và cập nhật đơn
+### Duyệt hoàn tiền và cập nhật đơn (tab "Hoàn tiền và đơn hàng")
 1. Mở `/nhan-vien`, nhập **khoá nhân viên** (`STAFF_API_KEY` trong `.env`; `init-env` đã in ra). Khoá chỉ lưu trong tab hiện tại.
 2. Mục **Yêu cầu hoàn tiền chờ duyệt** liệt kê: mã yêu cầu, đơn, khách và SĐT, cách thanh toán, lý do và mô tả, số tiền hoàn. Gọi điện cho khách theo SĐT để xác nhận và thoả thuận cách trả tiền, rồi bấm **Duyệt hoàn tiền** hoặc **Từ chối** (có thể ghi chú). Hoàn toàn bộ đơn thì đơn chuyển sang "đã hoàn tiền". Việc chuyển tiền thật làm ngoài hệ thống.
 3. Mục **Cập nhật trạng thái đơn**: nhập mã đơn, bấm "Đang giao" rồi "Đã giao". Với đơn COD, bấm "Đã giao" nghĩa là đã thu tiền. Hoàn tiền chỉ mở khi đơn đã ở trạng thái "đã giao".
@@ -69,15 +69,14 @@ docker compose run --rm ingest
 
 File không đổi thì bỏ qua, file đổi thì thay toàn bộ nội dung cũ. (Cách khác: gọi API `POST /documents/upload`, xem `docs/api/document-ingestion.md`.) Tài liệu **không ghi giá và tồn kho** vì các số này luôn được tra trực tiếp từ hệ thống; số liệu chính sách (phí ship, hạn hoàn tiền) phải khớp với `.env`.
 
-### Giá, tồn kho và sản phẩm
-Chưa có giao diện quản trị sản phẩm; chỉnh trực tiếp trong DB, trợ lý và website đọc được ngay:
+### Quản lý sản phẩm (giá, tồn kho, thêm, sửa, xoá)
+Vào `/nhan-vien`, đăng nhập rồi chọn tab **Sản phẩm** (mở sẵn). Danh sách hiện mọi sản phẩm, kể cả hết hàng, kèm ảnh, giá (giá gốc gạch ngang nếu đang giảm) và nhãn tồn kho (xanh: còn hàng, vàng: sắp hết, đỏ: hết). Có ô tìm kiếm và lọc theo danh mục.
 
-```
-docker compose exec chatbot-db-prod sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c \
-  "UPDATE products SET price_vnd = 21990000, old_price_vnd = 24990000, stock = 30 WHERE slug = '"'"'iphone-16-128gb'"'"'"'
-```
-
-Thêm sản phẩm mới: `INSERT INTO products (...)` (cột: `slug, name, category, brand, price_vnd, old_price_vnd, rating, stock, specs, description, image_url`; `category` là `dien-thoai`, `laptop`, `may-tinh-bang`, `dong-ho` hoặc `phu-kien`), đặt ảnh vào `frontend/public/products/` rồi `docker compose up -d --build frontend`, và viết thêm mô tả vào `documents/products/` rồi chạy lại `ingest`.
+- **Sửa**: bấm "Sửa" ở dòng sản phẩm, đổi tên, danh mục, thương hiệu, **giá bán**, **giá gốc** (để trống nếu không giảm giá), **tồn kho**, đánh giá, mô tả, thông số kỹ thuật, ảnh rồi "Lưu". Giá và tồn kho mới có hiệu lực **ngay**: website, giỏ hàng và trợ lý AI đều đọc số mới (khách hỏi giá thì trợ lý trả giá vừa sửa).
+- **Thêm**: bấm "+ Thêm sản phẩm", nhập **mã sản phẩm (slug)** gồm chữ thường, số và dấu gạch ngang (vd `loa-jbl-flip-6`, không đổi được về sau), các thông tin còn lại và ảnh. Giá gốc phải lớn hơn giá bán.
+- **Ảnh**: PNG, JPG hoặc WEBP, tối đa 2 MB (`MAX_PRODUCT_IMAGE_MB`); hệ thống kiểm tra nội dung file chứ không tin đuôi file. Ảnh mới thay ảnh cũ và ảnh cũ được xoá. Chưa có ảnh thì website hiện ảnh minh hoạ.
+- **Xoá**: chỉ xoá được sản phẩm chưa từng nằm trong đơn hàng nào (giỏ hàng chứa nó được dọn theo). Sản phẩm đã có đơn thì **đặt tồn kho = 0** để ngừng bán.
+- Mô tả chi tiết hơn để trợ lý **tư vấn** (người dùng phù hợp, so sánh) vẫn viết trong `documents/products/` rồi `docker compose run --rm ingest`; tài liệu đó không ghi giá và tồn kho.
 
 ### Chính sách cửa hàng
 Số liệu trong `.env`: `SHIPPING_FEE_VND`, `FREE_SHIPPING_FROM_VND`, `REFUND_WINDOW_DAYS`, `MAX_QTY_PER_LINE`... Đổi xong chạy `docker compose up -d` và sửa `documents/policies/` cho khớp rồi `ingest` lại.
