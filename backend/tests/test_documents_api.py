@@ -7,7 +7,9 @@ from fastapi.testclient import TestClient
 from app.documents.router import router
 from app.documents.text_extraction import split_into_chunks
 from app.embedding_client import EmbeddingError
-from app.settings import Settings, get_settings
+from app.settings import get_settings
+
+from settings_factory import make_settings
 
 
 class FakeStore:
@@ -41,13 +43,7 @@ class FailingEmbedder:
 
 
 def make_client(tmp_path, embedder=None, **overrides):
-    overrides.setdefault("api_key", "")  # không để API_KEY trong .env/môi trường thật lọt vào test
-    settings = Settings(
-        _env_file=None,
-        postgres_db="x", postgres_user="x", postgres_password="x",
-        embedding_api_url="http://embed.invalid/v1", embedding_model_name="m",
-        documents_dir=str(tmp_path), **overrides,
-    )
+    settings = make_settings(documents_dir=str(tmp_path), **overrides)
     app = FastAPI()
     app.include_router(router)
     app.dependency_overrides[get_settings] = lambda: settings

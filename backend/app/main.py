@@ -1,9 +1,11 @@
-"""Điểm vào FastAPI: /health và API nạp tài liệu (/documents/*)."""
+"""Điểm vào FastAPI: /health, API nạp tài liệu (/documents/*) và API chat RAG (/chat/*)."""
 
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from app.agent.bootstrap import create_agent
+from app.agent.router import router as chat_router
 from app.documents.router import router as documents_router
 from app.documents.store import PgDocumentStore, create_pool
 from app.embedding_client import HttpEmbedder
@@ -25,15 +27,18 @@ async def lifespan(app: FastAPI):
     )
     app.state.document_store = PgDocumentStore(pool)
     app.state.embedder = embedder
+    app.state.agent = await create_agent(settings, pool, embedder)
     try:
         yield
     finally:
+        await app.state.agent.close()
         embedder.close()
         pool.close()
 
 
 app = FastAPI(title="Chatbot backend", lifespan=lifespan)
 app.include_router(documents_router)
+app.include_router(chat_router)
 
 
 @app.get("/health")

@@ -28,6 +28,28 @@ class Settings(BaseSettings):
     embedding_batch_size: int = Field(default=10, ge=1)
     embedding_timeout_s: float = 60.0
 
+    # LLM tự host (API tương thích OpenAI): gọi POST {llm_api_url}/chat/completions
+    llm_api_url: str
+    llm_model_name: str
+    llm_api_key: str = "not-needed"
+    llm_max_tokens: int = Field(default=1024, ge=64)
+    llm_timeout: float = 60.0
+
+    # Reranker (Qwen3-Reranker): gọi POST {reranker_api_url}/rerank
+    reranker_api_url: str
+    reranker_model_name: str
+    reranker_timeout_s: float = 30.0
+
+    # RAG: lấy rag_top_k đoạn gần nhất bằng vector, rerank rồi giữ tối đa rag_top_n đoạn có điểm >= rag_min_score
+    rag_top_k: int = Field(default=10, ge=1)
+    rag_top_n: int = Field(default=4, ge=1)
+    rag_min_score: float = Field(default=0.3, ge=0, le=1)
+    # Câu trả lời dựa trên tài liệu nên để nhiệt độ thấp (LLM_TEMPERATURE chung dành cho chat tự do)
+    rag_answer_temperature: float = Field(default=0.2, ge=0, le=2)
+    # Quá ngưỡng này thì tóm tắt phần cũ của hội thoại, chỉ giữ rag_keep_messages tin nhắn gần nhất
+    rag_summarize_after: int = Field(default=12, ge=4)
+    rag_keep_messages: int = Field(default=6, ge=2)
+
     # Thư mục gốc được phép nạp theo folder; request không thể trỏ ra ngoài thư mục này
     documents_dir: str = "documents"
     max_upload_mb: int = Field(default=20, ge=1)

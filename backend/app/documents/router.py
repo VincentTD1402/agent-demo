@@ -1,14 +1,14 @@
 """API nạp tài liệu: upload file qua multipart hoặc quét một thư mục trên server."""
 
-import hmac
 import threading
 from functools import lru_cache
 from pathlib import Path, PurePosixPath
 from typing import Literal
 
-from fastapi import APIRouter, Body, Depends, Form, Header, HTTPException, Query, Request, UploadFile
+from fastapi import APIRouter, Body, Depends, Form, HTTPException, Query, Request, UploadFile
 from pydantic import BaseModel, Field
 
+from app.api_key_auth import require_api_key
 from app.documents.ingestion_service import IngestionConfig, IngestionService
 from app.settings import Settings, get_settings
 
@@ -32,11 +32,6 @@ class IngestResultOut(BaseModel):
 
 class IngestResponse(BaseModel):
     results: list[IngestResultOut]
-
-
-def require_api_key(x_api_key: str | None = Header(default=None), settings: Settings = Depends(get_settings)) -> None:
-    if settings.api_key and not hmac.compare_digest(x_api_key or "", settings.api_key):
-        raise HTTPException(status_code=401, detail="Thiếu hoặc sai X-API-Key")
 
 
 @lru_cache
