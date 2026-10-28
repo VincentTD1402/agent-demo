@@ -15,7 +15,7 @@ const USPS = [
   { icon: "truck", title: "Giao nhanh 2 giờ", sub: "Nội thành, miễn phí từ 500.000₫" },
   { icon: "shield", title: "Chính hãng 100%", sub: "Bảo hành 12 tháng toàn quốc" },
   { icon: "refresh", title: "Đổi trả 7 ngày", sub: "Hoàn tiền nếu không đúng mô tả" },
-  { icon: "headset", title: "Trợ lý AI 24/7", sub: "Tư vấn, tra đơn, hỗ trợ hoàn tiền" },
+  { icon: "headset", title: "Trợ lý AI 24/7", sub: "Tư vấn sản phẩm, giải đáp chính sách" },
 ] as const;
 
 // Component riêng để ref reveal gắn ngay khi section được render

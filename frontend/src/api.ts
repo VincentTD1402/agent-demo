@@ -1,31 +1,60 @@
 // Client gọi backend qua /api (Vite proxy ở dev, nginx ở production)
-export type PendingAction = { tool: string; args: Record<string, unknown> };
+export type ChatSource = { source: string; score: number };
 
-export type ChatResponse = {
+/** Sự kiện cuối của luồng /chat/stream */
+export type ChatDone = {
   thread_id: string;
-  status: "completed" | "awaiting_approval";
-  reply: string | null;
-  pending_actions: PendingAction[];
+  reply: string;
+  route: "chat" | "rag" | "out_of_scope";
+  sources: ChatSource[];
 };
 
-async function post<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`/api${path}`, {
+type StreamHandlers = {
+  onToken: (text: string) => void;
+  onDone: (done: ChatDone) => void;
+};
+
+/** Gửi tin nhắn và nhận câu trả lời theo luồng SSE: nhiều `token`, kết thúc bằng `done` (hoặc `error`). */
+export async function streamChat(
+  message: string,
+  threadId: string | undefined,
+  handlers: StreamHandlers,
+  signal?: AbortSignal,
+): Promise<void> {
+  const res = await fetch("/api/chat/stream", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    body: JSON.stringify({ message, thread_id: threadId }),
+    signal,
   });
-  if (!res.ok) {
+  if (!res.ok || !res.body) {
     const detail = await res.json().then((j) => j.detail).catch(() => null);
     throw new Error(typeof detail === "string" ? detail : `Lỗi ${res.status}`);
   }
-  return res.json() as Promise<T>;
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    // Mỗi sự kiện SSE kết thúc bằng một dòng trống
+    let end: number;
+    while ((end = buffer.indexOf("\n\n")) >= 0) {
+      const line = buffer.slice(0, end).trim();
+      buffer = buffer.slice(end + 2);
+      if (!line.startsWith("data:")) continue;
+      const event = JSON.parse(line.slice(5));
+      if (event.type === "token") handlers.onToken(event.content);
+      else if (event.type === "done") handlers.onDone(event as ChatDone);
+      else if (event.type === "error") throw new Error(event.detail ?? "Có lỗi xảy ra");
+    }
+  }
 }
 
-export const sendMessage = (userId: string, message: string, threadId?: string) =>
-  post<ChatResponse>("/v1/chat", { user_id: userId, message, thread_id: threadId });
-
-export const resumeThread = (threadId: string, userId: string, approved: boolean, note?: string) =>
-  post<ChatResponse>(`/v1/chat/${threadId}/resume`, { user_id: userId, approved, note });
+/** Xoá hội thoại phía server; lỗi mạng bỏ qua vì khách đã chuyển sang hội thoại mới. */
+export const deleteChat = (threadId: string) =>
+  fetch(`/api/chat/${encodeURIComponent(threadId)}`, { method: "DELETE" }).catch(() => undefined);
 
 export type Product = {
   slug: string;

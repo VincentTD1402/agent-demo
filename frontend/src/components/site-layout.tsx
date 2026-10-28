@@ -68,7 +68,7 @@ function Footer() {
       <div className="container footer-grid">
         <div>
           <div className="logo logo-light">Shop<span>Mobile</span></div>
-          <p>Điện thoại, laptop và phụ kiện chính hãng. Trợ lý AI hỗ trợ tư vấn, tra đơn và hoàn tiền 24/7.</p>
+          <p>Điện thoại, laptop và phụ kiện chính hãng. Trợ lý AI tư vấn sản phẩm và giải đáp chính sách 24/7.</p>
         </div>
         <div>
           <b>Mua hàng</b>

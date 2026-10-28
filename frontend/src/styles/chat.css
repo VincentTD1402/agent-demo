@@ -44,15 +44,7 @@
 .send { width: 46px; height: 46px; border: 0; border-radius: 99px; background: var(--blue); color: #fff; display: grid; place-items: center; transition: transform var(--t-fast) var(--ease-out); }
 .send:hover:not(:disabled) { transform: scale(1.08); }
 .chat-panel > footer { display: flex; align-items: center; gap: 6px; padding: 0 14px 10px; font-size: 11.5px; color: var(--ink-3); background: #fff; }
-.chat-panel > footer input { width: 92px; padding: 2px 6px; border: 1px solid var(--line); border-radius: 6px; font-size: 12px; }
 
-.approval { background: #fffaeb; border: 1px solid #f3d98b; border-radius: var(--radius-m); padding: 14px; font-size: 14px; animation: msg-in 360ms var(--ease-out) both; }
-.approval-head { display: flex; align-items: center; gap: 8px; font-weight: 700; margin-bottom: 8px; }
-.approval-fields { margin: 0 0 10px; display: grid; gap: 4px; }
-.approval-fields div { display: flex; justify-content: space-between; gap: 12px; }
-.approval-fields dt { color: var(--ink-2); } .approval-fields dd { margin: 0; font-weight: 600; text-align: right; }
-.approval-buttons { display: flex; gap: 8px; }
-.approval-buttons .btn { flex: 1; min-height: 42px; }
 
 @media (max-width: 520px) {
   .chat-panel { right: 0; bottom: 0; width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; border-radius: 0; }

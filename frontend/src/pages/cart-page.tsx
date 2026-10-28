@@ -63,7 +63,7 @@ export default function CartPage() {
         <button className="btn btn-primary" onClick={() => setNotice(true)}>ĐẶT HÀNG</button>
         {notice && (
           <p className="notice">
-            Thanh toán chưa được bật trong bản demo. Bạn có thể hỏi trợ lý AI về đơn hàng mẫu A100, A101.
+            Thanh toán chưa được bật trong bản demo. Bạn có thể hỏi trợ lý AI về sản phẩm, giao hàng và chính sách đổi trả.
           </p>
         )}
         <Link to="/" className="link">Tiếp tục mua sắm</Link>
