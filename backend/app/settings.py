@@ -50,6 +50,21 @@ class Settings(BaseSettings):
     rag_summarize_after: int = Field(default=12, ge=4)
     rag_keep_messages: int = Field(default=6, ge=2)
 
+    # Chính sách cửa hàng (phải khớp tài liệu trong documents/policies và nội dung hiển thị trên UI)
+    shipping_fee_vnd: int = Field(default=30000, ge=0)
+    free_shipping_from_vnd: int = Field(default=500000, ge=0)
+    refund_window_days: int = Field(default=7, ge=1)  # tính từ ngày giao hàng
+    max_qty_per_line: int = Field(default=10, ge=1, le=10)  # cột carts.qty có CHECK <= 10
+
+    # MCP server (tool giỏ hàng/đơn/hoàn tiền): agent gọi qua HTTP nội bộ với Bearer key.
+    # Key rỗng thì MCP server từ chối khởi động và agent tắt nhánh tool.
+    mcp_server_url: str = "http://mcp-server:8001/mcp"
+    mcp_api_key: str = ""
+    mcp_port: int = 8001
+
+    # Khoá cho API nhân viên (duyệt hoàn tiền, cập nhật trạng thái đơn); để trống = tắt các endpoint này
+    staff_api_key: str = ""
+
     # Thư mục gốc được phép nạp theo folder; request không thể trỏ ra ngoài thư mục này
     documents_dir: str = "documents"
     max_upload_mb: int = Field(default=20, ge=1)

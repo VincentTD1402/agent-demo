@@ -5,7 +5,7 @@ from typing import Annotated, Literal, TypedDict
 from langchain_core.messages import AnyMessage
 from langgraph.graph.message import add_messages
 
-Route = Literal["chat", "rag", "out_of_scope"]
+Route = Literal["chat", "rag", "shop", "out_of_scope"]
 DeclineReason = Literal["out_of_scope", "no_info"]
 
 

@@ -26,6 +26,9 @@ class ChatRequest(BaseModel):
     message: str = Field(min_length=1, max_length=2000)
     # Để trống = mở hội thoại mới; thread_id là khoá truy cập hội thoại nên server tự sinh UUID khó đoán
     thread_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{8,64}$")
+    # Phiên của trình duyệt (giỏ hàng, đơn đã đặt); khoá truy cập nên phải là chuỗi ngẫu nhiên khó đoán.
+    # Bỏ trống thì dùng thread_id: giỏ hàng chỉ gắn với hội thoại này.
+    session_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_-]{16,64}$")
 
 
 class SourceOut(BaseModel):
@@ -36,7 +39,7 @@ class SourceOut(BaseModel):
 class ChatResponse(BaseModel):
     thread_id: str
     reply: str
-    route: str = Field(description="chat | rag | out_of_scope")
+    route: str = Field(description="chat | rag | shop | out_of_scope")
     sources: list[SourceOut] = []
 
 
@@ -59,7 +62,8 @@ async def chat(body: ChatRequest, request: Request) -> ChatResponse:
     runtime = await _runtime(request)
     thread_id = body.thread_id or uuid.uuid4().hex
     try:
-        return _response(await run_chat(runtime.graph, thread_id, body.message))
+        graph = await runtime.get_graph()
+        return _response(await run_chat(graph, thread_id, body.session_id or thread_id, body.message))
     except _UPSTREAM_ERRORS:
         logger.exception("Lỗi dịch vụ phụ trợ khi chat")
         raise HTTPException(status_code=502, detail="Dịch vụ AI tạm thời gặp lỗi, thử lại sau") from None
@@ -77,7 +81,8 @@ async def chat_stream(body: ChatRequest, request: Request) -> StreamingResponse:
 
     async def events() -> AsyncIterator[str]:
         try:
-            async for item in stream_chat(runtime.graph, thread_id, body.message):
+            graph = await runtime.get_graph()
+            async for item in stream_chat(graph, thread_id, body.session_id or thread_id, body.message):
                 if isinstance(item, str):
                     yield _sse({"type": "token", "content": item})
                 else:

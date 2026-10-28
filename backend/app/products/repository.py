@@ -8,7 +8,10 @@ _COLUMNS = "slug, name, category, brand, price_vnd, old_price_vnd, rating, stock
 
 
 class ProductRepository(Protocol):
-    def search(self, q: str | None, category: str | None, limit: int) -> list[dict]: ...
+    def search(
+        self, q: str | None, category: str | None, limit: int, *,
+        min_price_vnd: int | None = None, max_price_vnd: int | None = None, in_stock_only: bool = False,
+    ) -> list[dict]: ...
 
     def get(self, slug: str) -> dict | None: ...
 
@@ -21,15 +24,26 @@ def _row_to_dict(row: tuple) -> dict:
 
 def _escape_like(text: str) -> str:
     # Ký tự đặc biệt của LIKE phải được thoát để người dùng gõ "%" hay "_" không khớp mọi thứ
-    return text.replace("\\", "\\\\").replace("%", "\%").replace("_", "\_")
+    return text.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
 
 
 class PgProductRepository:
     def __init__(self, pool: ConnectionPool):
         self._pool = pool
 
-    def search(self, q: str | None, category: str | None, limit: int) -> list[dict]:
+    def search(
+        self, q: str | None, category: str | None, limit: int, *,
+        min_price_vnd: int | None = None, max_price_vnd: int | None = None, in_stock_only: bool = False,
+    ) -> list[dict]:
         conditions, params = [], []
+        if min_price_vnd is not None:
+            conditions.append("price_vnd >= %s")
+            params.append(min_price_vnd)
+        if max_price_vnd is not None:
+            conditions.append("price_vnd <= %s")
+            params.append(max_price_vnd)
+        if in_stock_only:
+            conditions.append("stock > 0")
         if category:
             conditions.append("category = %s")
             params.append(category)
