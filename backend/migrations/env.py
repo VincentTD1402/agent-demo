@@ -1,66 +1,52 @@
-"""Môi trường Alembic: kết nối bằng role migrator và so model với database."""
+"""Alembic env: ghép URL từ POSTGRES_* (cùng biến với compose), chạy migration đồng bộ qua psycopg."""
+
 import os
+from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import create_engine
-
-from app.db.base import Base
-from app.db.langgraph_setup import LANGGRAPH_TABLES
-from app.db.session import to_sqlalchemy_url
-from app.db import models  # noqa: F401  (đăng ký model vào Base.metadata)
+from sqlalchemy import create_engine, pool
+from sqlalchemy.engine import URL
 
 config = context.config
-target_metadata = Base.metadata
+if config.config_file_name is not None:
+    fileConfig(config.config_file_name)
+
+# Chưa có model SQLAlchemy; khi có thì trỏ tới Base.metadata để dùng --autogenerate
+target_metadata = None
 
 
-def _database_url() -> str:
-    """Thứ tự: URL do bootstrap truyền vào > ALEMBIC_DATABASE_URL (chạy `alembic check` tay) > MigrateSettings."""
-    url = config.attributes.get("url") or os.environ.get("ALEMBIC_DATABASE_URL")
-    if not url:
-        from app.settings.migrate import MigrateSettings
-
-        url = MigrateSettings().migrator_database_url  # type: ignore[call-arg]
-    return to_sqlalchemy_url(url)
-
-
-def include_name(name, type_, parent_names) -> bool:
-    """Không reflect bảng LangGraph (cũng tránh cảnh báo kiểu `vector` mà SQLAlchemy chưa nhận ra)."""
-    if type_ == "table":
-        return name not in LANGGRAPH_TABLES
-    return True
-
-
-def include_object(obj, name, type_, reflected, compare_to) -> bool:
-    """Bảng của LangGraph do `setup()` quản lý: loại khỏi autogenerate để không bị đề xuất DROP."""
-    if type_ == "table":
-        return name not in LANGGRAPH_TABLES
-    if type_ == "index":
-        return obj.table.name not in LANGGRAPH_TABLES
-    return True
-
-
-def _configure(connection) -> None:
-    context.configure(
-        connection=connection,
-        target_metadata=target_metadata,
-        include_name=include_name,
-        include_object=include_object,
-        compare_type=True,
-        compare_server_default=True,
+def _database_url() -> URL:
+    # URL.create tự escape ký tự đặc biệt trong mật khẩu
+    return URL.create(
+        "postgresql+psycopg",
+        username=os.environ["POSTGRES_USER"],
+        password=os.environ["POSTGRES_PASSWORD"],
+        host=os.environ.get("POSTGRES_HOST", "localhost"),
+        port=int(os.environ.get("POSTGRES_PORT", "5432")),
+        database=os.environ["POSTGRES_DB"],
     )
 
 
+def run_migrations_offline() -> None:
+    context.configure(
+        url=_database_url().render_as_string(hide_password=False),
+        target_metadata=target_metadata,
+        literal_binds=True,
+        dialect_opts={"paramstyle": "named"},
+    )
+    with context.begin_transaction():
+        context.run_migrations()
+
+
 def run_migrations_online() -> None:
-    engine = create_engine(_database_url())
-    try:
-        with engine.connect() as connection:
-            _configure(connection)
-            with context.begin_transaction():
-                context.run_migrations()
-    finally:
-        engine.dispose()
+    engine = create_engine(_database_url(), poolclass=pool.NullPool)
+    with engine.connect() as connection:
+        context.configure(connection=connection, target_metadata=target_metadata)
+        with context.begin_transaction():
+            context.run_migrations()
 
 
 if context.is_offline_mode():
-    raise RuntimeError("Chế độ offline (--sql) không được hỗ trợ: revision gọi trực tiếp vào Postgres")
-run_migrations_online()
+    run_migrations_offline()
+else:
+    run_migrations_online()

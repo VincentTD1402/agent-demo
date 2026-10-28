@@ -1,15 +1,17 @@
 # Chạy: docker compose up -d --build   (cần file .env, xem .env.example)
-# Mỗi service chỉ nhận biến môi trường nó cần; chỉ `migrate` thấy DSN superuser và mật khẩu của cả 3 role DB.
+# Các model (LLM / embedding / reranker) chạy ngoài compose, backend gọi qua host.docker.internal.
 services:
-  db:
+  chatbot-db-prod:
     image: pgvector/pgvector:pg17
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:?set in .env}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set in .env}
-      POSTGRES_DB: ${POSTGRES_DB:-shopbot}
+      POSTGRES_DB: ${POSTGRES_DB:-langchain}
     volumes:
       - pgdata:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PUBLIC_PORT:-6024}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
@@ -17,106 +19,52 @@ services:
       retries: 10
     networks: [internal]
 
-  # Chạy một lần: tạo role, alembic upgrade, bảng LangGraph, GRANT, seed. Thoát mã 0 thì api/mcp-server mới lên.
-  migrate:
-    build: .
-    restart: "no"
-    command: ["python", "-m", "app.db.bootstrap"]
-    environment:
-      BOOTSTRAP_DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-shopbot}
-      # Chuyển tiếp thành phần của URL để migrate kiểm tra ký tự/độ mạnh trước khi dùng (URL không mã hoá %)
-      POSTGRES_USER: ${POSTGRES_USER}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: ${POSTGRES_DB:-shopbot}
-      MIGRATOR_DB_PASSWORD: ${MIGRATOR_DB_PASSWORD:?set in .env}
-      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?set in .env}
-      MCP_DB_PASSWORD: ${MCP_DB_PASSWORD:?set in .env}
-      EMBEDDING_DIMS: ${EMBEDDING_DIMS:-1024}
-      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-false}
-      # Cho phép 0004/0005 xoá đơn/hoàn tiền dạng cũ khi DB còn dòng (alembic -x allow_destroy_legacy_orders=true). Chỉ dev.
-      ALLOW_DESTROY_LEGACY_ORDERS: ${ALLOW_DESTROY_LEGACY_ORDERS:-false}
-      # Khách demo + staff demo chỉ được tạo khi ENV=dev và có STAFF_DEMO_PASSWORD (không có mật khẩu mặc định)
-      ENV: ${ENV:-production}
-      STAFF_DEMO_PASSWORD: ${STAFF_DEMO_PASSWORD:-}
-      # Số liệu chính sách ghi vào KB mẫu (cùng nguồn với API)
-      SHIPPING_FEE_VND: ${SHIPPING_FEE_VND:-30000}
-      FREE_SHIPPING_FROM_VND: ${FREE_SHIPPING_FROM_VND:-500000}
-      REFUND_WINDOW_DAYS: ${REFUND_WINDOW_DAYS:-7}
-      # Chỉ `docker compose run --rm migrate python -m app.kb.reindex` dùng; bước migrate không gọi embedding
-      EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL:-}
-      EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
-      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-}
-      EMBEDDING_TIMEOUT_S: ${EMBEDDING_TIMEOUT_S:-30}
-    depends_on:
-      db:
-        condition: service_healthy
-    networks: [internal]
-
-  # Công cụ của agent đóng gói thành MCP server (Streamable HTTP), chỉ nằm trong mạng nội bộ
-  mcp-server:
-    build: .
+  redis:
+    image: redis:7-alpine
     restart: unless-stopped
-    command: ["python", "-m", "app.mcp_server.server"]
-    environment:
-      DATABASE_URL: postgresql://shopbot_mcp:${MCP_DB_PASSWORD:?set in .env}@db:5432/${POSTGRES_DB:-shopbot}
-      MCP_HOST: 0.0.0.0
-      MCP_PORT: "8001"
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      DB_POOL_MAX: ${DB_POOL_MAX:-5}
-      REFUND_WINDOW_DAYS: ${REFUND_WINDOW_DAYS:-7}
-      EMBEDDING_DIMS: ${EMBEDDING_DIMS:-1024}
-    depends_on:
-      migrate:
-        condition: service_completed_successfully
+    volumes:
+      - redisdata:/data
     healthcheck:
-      test: ["CMD", "python", "-c", "import socket; socket.create_connection(('127.0.0.1', 8001), 2)"]
+      test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 3s
       retries: 10
     networks: [internal]
 
+  # Chạy một lần: alembic upgrade head. Thoát mã 0 thì api mới lên.
+  migrate:
+    build: .
+    restart: "no"
+    command: ["alembic", "upgrade", "head"]
+    env_file: .env
+    depends_on:
+      chatbot-db-prod:
+        condition: service_healthy
+    networks: [internal]
+
+  # Tên service `api` giữ nguyên vì frontend/nginx.conf.template proxy tới http://api:8000
   api:
     build: .
     restart: unless-stopped
-    environment:
-      DATABASE_URL: postgresql://shopbot_app:${APP_DB_PASSWORD:?set in .env}@db:5432/${POSTGRES_DB:-shopbot}
-      MCP_SERVER_URL: http://mcp-server:8001/mcp
-      LLM_BASE_URL: ${LLM_BASE_URL:?set in .env}
-      LLM_API_KEY: ${LLM_API_KEY:-not-needed}
-      LLM_MODEL: ${LLM_MODEL:?set in .env}
-      EMBEDDING_BASE_URL: ${EMBEDDING_BASE_URL:-}
-      EMBEDDING_API_KEY: ${EMBEDDING_API_KEY:-}
-      EMBEDDING_MODEL: ${EMBEDDING_MODEL:?set in .env}
-      EMBEDDING_DIMS: ${EMBEDDING_DIMS:-1024}
-      API_KEY: ${API_KEY:-}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
-      AGENT_MAX_STEPS: ${AGENT_MAX_STEPS:-12}
-      LOG_LEVEL: ${LOG_LEVEL:-INFO}
-      PAYOUT_ENCRYPTION_KEY: ${PAYOUT_ENCRYPTION_KEY:?set in .env}
-      SHIPPING_FEE_VND: ${SHIPPING_FEE_VND:-30000}
-      FREE_SHIPPING_FROM_VND: ${FREE_SHIPPING_FROM_VND:-500000}
-      REFUND_WINDOW_DAYS: ${REFUND_WINDOW_DAYS:-7}
-      LLM_TEMPERATURE: ${LLM_TEMPERATURE:-0.0}
-      LLM_TIMEOUT_S: ${LLM_TIMEOUT_S:-60}
-      DB_POOL_MAX: ${DB_POOL_MAX:-5}
-      SA_POOL_SIZE: ${SA_POOL_SIZE:-5}
-      SA_MAX_OVERFLOW: ${SA_MAX_OVERFLOW:-2}
-      LANGGRAPH_POOL_MAX: ${LANGGRAPH_POOL_MAX:-5}
+    env_file: .env
+    # Linux không tự có host.docker.internal; dòng này làm nó trỏ về máy host
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # Thư mục tài liệu cho POST /documents/ingest-folder (chỉ đọc)
+    volumes:
+      - ./documents:/srv/documents:ro
     ports:
       - "${API_PORT:-8000}:8000"
     depends_on:
       migrate:
         condition: service_completed_successfully
-      mcp-server:
+      chatbot-db-prod:
         condition: service_healthy
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
-      interval: 10s
-      timeout: 4s
-      retries: 6
+      redis:
+        condition: service_healthy
     networks: [internal]
 
-  # Giao diện chat (nginx); proxy /api -> api và gắn X-API-Key phía server nên key không lộ ra trình duyệt
+  # Giao diện chat (nginx); proxy /api -> api và gắn X-API-Key phía server
   frontend:
     build: ./frontend
     restart: unless-stopped
@@ -125,12 +73,12 @@ services:
     ports:
       - "${FRONTEND_PORT:-3000}:80"
     depends_on:
-      api:
-        condition: service_healthy
+      - api
     networks: [internal]
 
 volumes:
   pgdata:
+  redisdata:
 
 networks:
   internal:

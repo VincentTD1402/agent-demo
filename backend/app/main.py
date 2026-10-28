@@ -1,62 +1,41 @@
-"""Điểm vào FastAPI của ShopBot agent."""
-import logging
-from contextlib import AsyncExitStack, asynccontextmanager
+"""Điểm vào FastAPI: /health và API nạp tài liệu (/documents/*)."""
+
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from psycopg.rows import dict_row
-from psycopg_pool import AsyncConnectionPool
 
-from app.agent.runtime import open_runtime
-from app.api import routes_chat, routes_health, routes_products
-from app.db.session import create_engine_from_settings, create_session_factory
-from app.settings.api import get_api_settings
-
-
-def _open_pool(dsn: str, max_size: int) -> AsyncConnectionPool:
-    return AsyncConnectionPool(
-        dsn, min_size=1, max_size=max_size, open=False, kwargs={"row_factory": dict_row, "autocommit": True}
-    )
+from app.documents.router import router as documents_router
+from app.documents.store import PgDocumentStore, create_pool
+from app.embedding_client import HttpEmbedder
+from app.settings import EMBEDDING_DIMS, get_settings
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    settings = get_api_settings()
-    logging.basicConfig(
-        level=settings.log_level.upper(), format="%(asctime)s %(levelname)s %(name)s: %(message)s"
+    settings = get_settings()
+    pool = create_pool(settings)
+    pool.open(wait=False)
+    embedder = HttpEmbedder(
+        base_url=settings.embedding_api_url,
+        model=settings.embedding_model_name,
+        dims=EMBEDDING_DIMS,
+        batch_size=settings.embedding_batch_size,
+        timeout_s=settings.embedding_timeout_s,
+        api_key=settings.embedding_api_key,
     )
-    logging.getLogger(__name__).info("Số kết nối Postgres tối đa của API: %s", settings.max_connections)
-    async with AsyncExitStack() as stack:
-        # Schema do bước migrate tạo; API chỉ kết nối bằng role `app` (DML, không DDL)
-        pool = _open_pool(settings.database_url, settings.db_pool_max)
-        await pool.open()
-        stack.push_async_callback(pool.close)
-        app.state.pool = pool
-
-        engine = create_engine_from_settings(settings)
-        stack.push_async_callback(engine.dispose)
-        app.state.session_factory = create_session_factory(engine)
-
-        graph_pool = _open_pool(settings.database_url, settings.langgraph_pool_max)
-        await graph_pool.open()
-        stack.push_async_callback(graph_pool.close)
-        app.state.graph = await open_runtime(settings, graph_pool)
+    app.state.document_store = PgDocumentStore(pool)
+    app.state.embedder = embedder
+    try:
         yield
+    finally:
+        embedder.close()
+        pool.close()
 
 
-def create_app() -> FastAPI:
-    settings = get_api_settings()
-    app = FastAPI(title="ShopBot Agent API", version="0.1.0", lifespan=lifespan)
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=settings.cors_origin_list,
-        allow_methods=["GET", "POST"],
-        allow_headers=["Content-Type", "X-API-Key"],
-    )
-    app.include_router(routes_health.router)
-    app.include_router(routes_chat.router)
-    app.include_router(routes_products.router)
-    return app
+app = FastAPI(title="Chatbot backend", lifespan=lifespan)
+app.include_router(documents_router)
 
 
-app = create_app()
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok"}

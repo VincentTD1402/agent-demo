@@ -1,27 +1,35 @@
 [project]
-name = "shopbot-agent"
+name = "chatbot-backend"
 version = "0.1.0"
-description = "ShopBot AI agent backend (LangGraph + MCP + FastAPI)"
+description = "RAG chatbot backend (FastAPI + LangChain/LangGraph + Postgres/pgvector + Redis)"
 requires-python = ">=3.12"
 dependencies = [
+    # API
     "fastapi==0.161.1",
     "uvicorn[standard]==0.54.0",
     "pydantic-settings==2.16.1",
+    "python-multipart==0.0.32",
+    # LangChain / LangGraph, LLM tương thích OpenAI (LLM tự host + Gemini)
+    "langchain==1.4.7",
+    "langchain-openai==1.7.2",
+    "langchain-text-splitters==1.1.3",
     "langgraph==1.2.16",
     "langgraph-checkpoint-postgres==3.2.0",
-    "langchain-openai==1.7.2",
-    "langchain-mcp-adapters==0.3.2",
-    # mcp 2.x đang xung đột với langchain-mcp-adapters
-    "mcp==1.30.0",
+    # Postgres + pgvector, pool kết nối
     "psycopg[binary,pool]==3.3.6",
-    "pyjwt==2.15.1",
-    "argon2-cffi==25.1.0",
-    "cryptography==50.0.2",
     "sqlalchemy[asyncio]==2.1.6",
-    "alembic==1.20.1",
     "pgvector==0.5.1",
-    # client embedding của app.kb.reindex (đã có sẵn gián tiếp qua openai; khai báo tường minh)
+    # Migration schema (alembic upgrade head)
+    "alembic==1.20.1",
+    # Cache
+    "redis==8.1.0",
+    # Gọi embedding / reranker / LLM qua HTTP
     "httpx==0.28.1",
+    # Đọc PDF / Word khi nạp tài liệu
+    "pypdf==6.21.3",
+    "python-docx==1.2.0",
+    # Auth
+    "pyjwt==2.15.1",
 ]
 
 [dependency-groups]
