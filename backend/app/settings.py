@@ -68,6 +68,10 @@ class Settings(BaseSettings):
     chat_rate_per_ip_per_minute: int = Field(default=30, ge=1)
     chat_duplicate_limit: int = Field(default=3, ge=1)
 
+    # Ảnh sản phẩm nhân viên tải lên: ghi vào thư mục này (volume dùng chung với nginx, phục vụ ở /uploads/products/)
+    product_images_dir: str = "uploads/products"
+    max_product_image_mb: int = Field(default=2, ge=1, le=10)
+
     # MCP server (tool giỏ hàng/đơn/hoàn tiền): agent gọi qua HTTP nội bộ với Bearer key.
     # Key rỗng thì MCP server từ chối khởi động và agent tắt nhánh tool.
     mcp_server_url: str = "http://mcp-server:8001/mcp"

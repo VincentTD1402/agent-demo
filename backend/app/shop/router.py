@@ -4,12 +4,10 @@ Giỏ hàng xác định bằng header `X-Session-Id` (UUID ngẫu nhiên do tr�
 nhờ vậy món agent thêm vào giỏ hiện ngay trên giao diện. API nhân viên cần header `X-Staff-Key`.
 """
 
-import hmac
-
-from fastapi import APIRouter, Depends, Header, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, Request
 from pydantic import BaseModel, Field
 
-from app.settings import Settings, get_settings
+from app.api_key_auth import require_staff
 from app.shop.services import ShopServices
 
 cart_router = APIRouter(prefix="/cart", tags=["cart"])
@@ -72,13 +70,6 @@ def set_item_quantity(
 @cart_router.delete("/items/{slug}", response_model=CartOut)
 def remove_item(slug: str, session_id: str = Depends(session_id_header), shop: ShopServices = Depends(get_shop)) -> dict:
     return shop.cart.remove(session_id, slug)
-
-
-def require_staff(x_staff_key: str | None = Header(default=None), settings: Settings = Depends(get_settings)) -> None:
-    if not settings.staff_api_key:
-        raise HTTPException(status_code=503, detail="API nhân viên chưa được bật (STAFF_API_KEY trống)")
-    if not hmac.compare_digest(x_staff_key or "", settings.staff_api_key):
-        raise HTTPException(status_code=401, detail="Thiếu hoặc sai X-Staff-Key")
 
 
 class RefundDecisionIn(BaseModel):

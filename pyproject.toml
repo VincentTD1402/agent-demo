@@ -1,7 +1,7 @@
 [project]
 name = "chatbot-backend"
 version = "0.1.0"
-description = "RAG chatbot backend (FastAPI + LangChain/LangGraph + Postgres/pgvector + Redis)"
+description = "RAG chatbot backend (FastAPI + LangChain/LangGraph + Postgres/pgvector)"
 requires-python = ">=3.12"
 dependencies = [
     # API
@@ -21,8 +21,6 @@ dependencies = [
     "pgvector==0.5.1",
     # Migration schema (alembic upgrade head)
     "alembic==1.20.1",
-    # Cache
-    "redis==8.1.0",
     # Gọi embedding / reranker / LLM qua HTTP
     "httpx==0.28.1",
     # Đọc PDF / Word khi nạp tài liệu

@@ -12,6 +12,8 @@ from app.agent.router import router as chat_router
 from app.documents.router import router as documents_router
 from app.documents.store import PgDocumentStore, create_pool
 from app.embedding_client import HttpEmbedder
+from app.products.admin import ProductAdminService
+from app.products.admin_router import router as product_admin_router
 from app.products.repository import PgProductRepository
 from app.products.router import router as products_router
 from app.settings import EMBEDDING_DIMS, get_settings
@@ -36,6 +38,7 @@ async def lifespan(app: FastAPI):
     app.state.document_store = PgDocumentStore(pool)
     app.state.embedder = embedder
     app.state.product_repo = PgProductRepository(pool)
+    app.state.product_admin = ProductAdminService(pool)
     app.state.shop = build_shop_services(settings, pool)
     app.state.chat_guard = ChatGuard.from_settings(settings)
     app.state.agent = await create_agent(settings, pool, embedder)
@@ -54,6 +57,7 @@ app.include_router(chat_router)
 app.include_router(products_router)
 app.include_router(cart_router)
 app.include_router(staff_router)
+app.include_router(product_admin_router)
 
 
 @app.exception_handler(ShopError)

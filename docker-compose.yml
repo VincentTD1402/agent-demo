@@ -20,18 +20,6 @@ services:
       retries: 10
     networks: [internal]
 
-  redis:
-    image: redis:7-alpine
-    restart: unless-stopped
-    volumes:
-      - redisdata:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-    networks: [internal]
-
   # Chạy một lần: alembic upgrade head. Thoát mã 0 thì api mới lên.
   migrate:
     build: .
@@ -89,6 +77,8 @@ services:
     # Thư mục tài liệu cho POST /documents/ingest-folder (chỉ đọc)
     volumes:
       - ./documents:/srv/documents:ro
+      # Ảnh sản phẩm nhân viên tải lên: api ghi, nginx (frontend) phục vụ ở /uploads/products/
+      - product-images:/srv/uploads
     ports:
       - "${API_PORT:-8000}:8000"
     healthcheck:
@@ -101,8 +91,6 @@ services:
         condition: service_completed_successfully
       chatbot-db-prod:
         condition: service_healthy
-      redis:
-        condition: service_healthy
       # Chờ MCP server để câu hỏi mua sắm đầu tiên đã có tool (thiếu MCP_API_KEY thì compose báo lỗi ngay ở đây)
       mcp-server:
         condition: service_healthy
@@ -114,6 +102,8 @@ services:
     restart: unless-stopped
     environment:
       API_KEY: ${API_KEY:-}
+    volumes:
+      - product-images:/usr/share/nginx/uploads:ro
     ports:
       - "${FRONTEND_PORT:-3000}:80"
     healthcheck:
@@ -128,7 +118,7 @@ services:
 
 volumes:
   pgdata:
-  redisdata:
+  product-images:
 
 networks:
   internal:

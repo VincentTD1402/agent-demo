@@ -22,6 +22,8 @@ COPY backend/migrations ./migrations
 
 # Chạy bằng user thường, không dùng root
 RUN useradd --system --uid 10001 appuser
+# Thư mục ảnh sản phẩm nhân viên tải lên (mount volume product-images): chủ sở hữu là appuser để api ghi được
+RUN mkdir -p /srv/uploads/products && chown -R appuser /srv/uploads
 USER appuser
 
 EXPOSE 8000

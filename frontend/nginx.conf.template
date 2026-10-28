@@ -3,6 +3,14 @@ server {
     listen 80;
     root /usr/share/nginx/html;
     index index.html;
+    # Tải ảnh sản phẩm ở /nhan-vien (giới hạn thực tế do MAX_PRODUCT_IMAGE_MB của api)
+    client_max_body_size 3m;
+
+    # Ảnh sản phẩm do nhân viên tải lên (volume dùng chung với api); tên file ngẫu nhiên nên cache lâu được
+    location /uploads/ {
+        alias /usr/share/nginx/uploads/;
+        expires 7d;
+    }
 
     location /api/ {
         proxy_pass http://api:8000/;
