@@ -9,6 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 
+from app.agent.guardrails import GuardVerdict
 from app.agent.reranker_client import RerankError
 from app.agent.runner import ChatResult, run_chat, stream_chat
 from app.api_key_auth import require_api_key
@@ -43,6 +44,23 @@ class ChatResponse(BaseModel):
     sources: list[SourceOut] = []
 
 
+_TOO_FAST = "Dạ anh/chị nhắn hơi nhanh ạ, anh/chị chờ em một chút rồi nhắn tiếp nhé."
+
+
+def _client_ip(request: Request) -> str:
+    # nginx đặt X-Forwarded-For = địa chỉ thật của khách; chạy trực tiếp không qua nginx thì dùng địa chỉ kết nối
+    forwarded = request.headers.get("x-forwarded-for", "").split(",")[0].strip()
+    return forwarded or (request.client.host if request.client else "unknown")
+
+
+def _screen(request: Request, body: "ChatRequest", thread_id: str) -> GuardVerdict:
+    """Giới hạn tần suất và lọc tin rác/tiêm lệnh trước khi gọi agent; quá tần suất thì 429 kèm Retry-After."""
+    verdict = request.app.state.chat_guard.check(body.session_id or thread_id, _client_ip(request), body.message)
+    if verdict.retry_after is not None:
+        raise HTTPException(status_code=429, detail=_TOO_FAST, headers={"Retry-After": str(verdict.retry_after)})
+    return verdict
+
+
 async def _runtime(request: Request):
     runtime = request.app.state.agent
     try:
@@ -59,8 +77,11 @@ def _response(result: ChatResult) -> ChatResponse:
 
 @router.post("", response_model=ChatResponse)
 async def chat(body: ChatRequest, request: Request) -> ChatResponse:
-    runtime = await _runtime(request)
     thread_id = body.thread_id or uuid.uuid4().hex
+    verdict = _screen(request, body, thread_id)
+    if verdict.reply:  # tin rác/tiêm lệnh: trả câu dựng sẵn, không gọi agent và không lưu vào hội thoại
+        return ChatResponse(thread_id=thread_id, reply=verdict.reply, route="out_of_scope")
+    runtime = await _runtime(request)
     try:
         graph = await runtime.get_graph()
         return _response(await run_chat(graph, thread_id, body.session_id or thread_id, body.message))
@@ -76,10 +97,15 @@ def _sse(payload: dict) -> str:
 @router.post("/stream")
 async def chat_stream(body: ChatRequest, request: Request) -> StreamingResponse:
     """SSE: `{"type":"token","content":...}` ... rồi `{"type":"done",...}`; lỗi giữa chừng gửi `{"type":"error"}`."""
-    runtime = await _runtime(request)
     thread_id = body.thread_id or uuid.uuid4().hex
+    verdict = _screen(request, body, thread_id)
+    runtime = None if verdict.reply else await _runtime(request)
 
     async def events() -> AsyncIterator[str]:
+        if verdict.reply:
+            yield _sse({"type": "token", "content": verdict.reply})
+            yield _sse({"type": "done", **ChatResponse(thread_id=thread_id, reply=verdict.reply, route="out_of_scope").model_dump()})
+            return
         try:
             graph = await runtime.get_graph()
             async for item in stream_chat(graph, thread_id, body.session_id or thread_id, body.message):

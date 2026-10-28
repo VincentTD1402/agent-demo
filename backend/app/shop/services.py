@@ -8,6 +8,7 @@ from app.products.repository import PgProductRepository
 from app.settings import Settings
 from app.shop.cart import CartService
 from app.shop.common import ShopPolicy
+from app.shop.lookup_guard import LookupGuard
 from app.shop.orders import OrderService
 from app.shop.payments import PaymentGateway, SimulatedPaymentGateway
 from app.shop.refunds import RefundService
@@ -23,9 +24,10 @@ class ShopServices:
 
 def build_shop_services(settings: Settings, pool: ConnectionPool, gateway: PaymentGateway | None = None) -> ShopServices:
     policy = ShopPolicy.from_settings(settings)
+    guard = LookupGuard(pool, policy)
     return ShopServices(
         products=PgProductRepository(pool),
         cart=CartService(pool, policy),
-        orders=OrderService(pool, policy, gateway or SimulatedPaymentGateway()),
-        refunds=RefundService(pool, policy),
+        orders=OrderService(pool, policy, gateway or SimulatedPaymentGateway(), guard),
+        refunds=RefundService(pool, policy, guard),
     )

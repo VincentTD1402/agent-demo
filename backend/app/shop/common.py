@@ -11,16 +11,28 @@ class ShopError(Exception):
     """Lỗi nghiệp vụ có thông điệp tiếng Việt an toàn để hiển thị cho khách (agent đọc và diễn đạt lại)."""
 
 
+class OrderNotFoundError(ShopError):
+    """Mã đơn và SĐT không khớp đơn nào; lần sai này được tính vào giới hạn dò tìm (lookup_guard)."""
+
+
 @dataclass(frozen=True)
 class ShopPolicy:
     shipping_fee_vnd: int
     free_shipping_from_vnd: int
     refund_window_days: int
     max_qty_per_line: int
+    lookup_max_failures_per_code: int
+    lookup_max_failures_per_phone: int
+    lookup_window_minutes: int
+    max_orders_per_session_per_hour: int
 
     @classmethod
     def from_settings(cls, s: Settings) -> "ShopPolicy":
-        return cls(s.shipping_fee_vnd, s.free_shipping_from_vnd, s.refund_window_days, s.max_qty_per_line)
+        return cls(
+            s.shipping_fee_vnd, s.free_shipping_from_vnd, s.refund_window_days, s.max_qty_per_line,
+            s.lookup_max_failures_per_code, s.lookup_max_failures_per_phone, s.lookup_window_minutes,
+            s.max_orders_per_session_per_hour,
+        )
 
     def shipping_fee(self, subtotal_vnd: int) -> int:
         return 0 if subtotal_vnd >= self.free_shipping_from_vnd else self.shipping_fee_vnd

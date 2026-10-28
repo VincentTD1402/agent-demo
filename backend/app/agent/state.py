@@ -22,3 +22,4 @@ class AgentState(TypedDict, total=False):
     question: str  # câu hỏi độc lập (đã giải nghĩa đại từ) dùng để tìm tài liệu
     documents: list[RetrievedChunk]  # reset mỗi lượt để không dùng nhầm tài liệu của lượt trước
     decline_reason: DeclineReason
+    off_topic_strikes: int  # số lượt liên tiếp khách hỏi ngoài phạm vi shop; về 0 khi hỏi đúng việc

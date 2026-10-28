@@ -56,6 +56,18 @@ class Settings(BaseSettings):
     refund_window_days: int = Field(default=7, ge=1)  # tính từ ngày giao hàng
     max_qty_per_line: int = Field(default=10, ge=1, le=10)  # cột carts.qty có CHECK <= 10
 
+    # Chống dò tìm/lạm dụng: tra cứu đơn sai quá số lần theo mã đơn hoặc SĐT thì khoá tạm; giới hạn số đơn mỗi phiên
+    lookup_max_failures_per_code: int = Field(default=5, ge=1)
+    lookup_max_failures_per_phone: int = Field(default=10, ge=1)
+    lookup_window_minutes: int = Field(default=15, ge=1)
+    max_orders_per_session_per_hour: int = Field(default=5, ge=1)
+
+    # Giới hạn tần suất chat (theo phiên và theo IP) để chống spam; tin lặp lại quá chat_duplicate_limit lần/phút bị chặn
+    chat_rate_per_minute: int = Field(default=10, ge=1)
+    chat_rate_per_hour: int = Field(default=120, ge=1)
+    chat_rate_per_ip_per_minute: int = Field(default=30, ge=1)
+    chat_duplicate_limit: int = Field(default=3, ge=1)
+
     # MCP server (tool giỏ hàng/đơn/hoàn tiền): agent gọi qua HTTP nội bộ với Bearer key.
     # Key rỗng thì MCP server từ chối khởi động và agent tắt nhánh tool.
     mcp_server_url: str = "http://mcp-server:8001/mcp"

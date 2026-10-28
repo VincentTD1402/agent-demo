@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 from app.agent.bootstrap import create_agent
+from app.agent.guardrails import ChatGuard
 from app.agent.router import router as chat_router
 from app.documents.router import router as documents_router
 from app.documents.store import PgDocumentStore, create_pool
@@ -36,6 +37,7 @@ async def lifespan(app: FastAPI):
     app.state.embedder = embedder
     app.state.product_repo = PgProductRepository(pool)
     app.state.shop = build_shop_services(settings, pool)
+    app.state.chat_guard = ChatGuard.from_settings(settings)
     app.state.agent = await create_agent(settings, pool, embedder)
     try:
         yield

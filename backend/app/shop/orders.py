@@ -3,7 +3,8 @@
 from psycopg import Connection
 from psycopg_pool import ConnectionPool
 
-from app.shop.common import ShopError, ShopPolicy, check_session_id, iso, normalize_phone
+from app.shop.common import OrderNotFoundError, ShopError, ShopPolicy, check_session_id, iso, normalize_phone
+from app.shop.lookup_guard import LookupGuard
 from app.shop.payments import PaymentGateway
 
 _COLUMNS = (
@@ -16,8 +17,9 @@ _STATUS_FLOW = {"processing": "shipped", "shipped": "delivered"}
 
 
 class OrderService:
-    def __init__(self, pool: ConnectionPool, policy: ShopPolicy, gateway: PaymentGateway):
+    def __init__(self, pool: ConnectionPool, policy: ShopPolicy, gateway: PaymentGateway, guard: LookupGuard):
         self._pool = pool
+        self._guard = guard
         self._policy = policy
         self._gateway = gateway
 
@@ -32,6 +34,11 @@ class OrderService:
             raise ShopError("Phương thức thanh toán phải là 'cod' (khi nhận hàng) hoặc 'online'")
         phone = normalize_phone(phone)
         with self._pool.connection() as conn:  # một transaction: lỗi ở bất kỳ bước nào thì rollback toàn bộ
+            recent = conn.execute(
+                "SELECT count(*) FROM orders WHERE session_id = %s AND created_at > now() - interval '1 hour'", (session_id,)
+            ).fetchone()[0]
+            if recent >= self._policy.max_orders_per_session_per_hour:  # chặn spam đơn giữ chỗ tồn kho
+                raise ShopError("Bạn đã đặt khá nhiều đơn trong một giờ qua. Vui lòng thử lại sau hoặc liên hệ nhân viên ShopMobile.")
             # Khoá các dòng sản phẩm (thứ tự id cố định để tránh deadlock): hai đơn cùng mua món cuối cùng sẽ xếp hàng
             rows = conn.execute(
                 """
@@ -67,6 +74,9 @@ class OrderService:
             return self._view(conn, self._row(conn, "WHERE id = %s", (order_id,)))
 
     def get(self, code: str, phone: str) -> dict:
+        return self._guard.verified(code, phone, lambda: self._get(code, phone))
+
+    def _get(self, code: str, phone: str) -> dict:
         with self._pool.connection() as conn:
             return self._view(conn, self._find(conn, code, phone))
 
@@ -79,6 +89,9 @@ class OrderService:
             return [self._view(conn, row) for row in rows]
 
     def cancel(self, code: str, phone: str) -> dict:
+        return self._guard.verified(code, phone, lambda: self._cancel(code, phone))
+
+    def _cancel(self, code: str, phone: str) -> dict:
         """Chỉ huỷ được đơn đang xử lý và chưa thanh toán; đơn đã trả tiền cần nhân viên xử lý để hoàn tiền đúng."""
         with self._pool.connection() as conn:
             row = self._find(conn, code, phone, lock=True)
@@ -96,6 +109,9 @@ class OrderService:
             return self._view(conn, self._row(conn, "WHERE id = %s", (row[0],)))
 
     def pay(self, code: str, phone: str) -> dict:
+        return self._guard.verified(code, phone, lambda: self._pay(code, phone))
+
+    def _pay(self, code: str, phone: str) -> dict:
         """Thanh toán trực tuyến cho đơn 'online' chưa trả. Số tiền luôn lấy từ DB, không nhận từ người gọi."""
         with self._pool.connection() as conn:
             row = self._find(conn, code, phone, lock=True)
@@ -141,12 +157,12 @@ class OrderService:
         try:
             phone = normalize_phone(phone)
         except ShopError:
-            raise ShopError(_NOT_FOUND) from None
+            raise OrderNotFoundError(_NOT_FOUND) from None
         row = self._row(
             conn, "WHERE code = %s AND phone = %s" + (" FOR UPDATE" if lock else ""), ((code or "").strip().upper(), phone)
         )
         if row is None:
-            raise ShopError(_NOT_FOUND)
+            raise OrderNotFoundError(_NOT_FOUND)
         return row
 
     @staticmethod

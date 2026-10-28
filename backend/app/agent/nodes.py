@@ -15,7 +15,7 @@ from langchain_core.messages import (
 )
 from langchain_core.runnables import Runnable
 
-from app.agent import prompts
+from app.agent import guardrails, prompts
 from app.agent.llm import message_text, parse_json_object
 from app.agent.retrieval import ChunkSearcher
 from app.agent.state import AgentState
@@ -26,6 +26,8 @@ _VALID_ROUTES = {"chat", "rag", "shop", "out_of_scope"}
 _ANALYZE_WINDOW = 6  # số tin nhắn gần nhất đưa vào bước phân loại/viết lại câu hỏi
 _ANSWER_WINDOW = 10  # số tin nhắn gần nhất đưa vào bước trả lời
 _SHOP_WINDOW = 24  # vòng gọi tool sinh nhiều tin nhắn (AI tool_call + kết quả) nên cần cửa sổ rộng hơn
+_FIRM_STRIKES = 3  # từ lượt ngoài lề thứ 3 liên tiếp: từ chối ngắn gọn, dứt khoát
+_STOP_STRIKES = 5  # từ lượt thứ 5: trả câu dựng sẵn, không tốn lượt LLM
 
 
 @dataclass(frozen=True)
@@ -105,7 +107,8 @@ class AgentNodes:
         except Exception:
             logger.exception("Phân loại câu hỏi thất bại, dùng nhánh RAG mặc định")
         logger.info("route=%s question=%r", route, question)
-        update: dict = {"route": route, "question": question, "documents": []}
+        strikes = state.get("off_topic_strikes", 0) + 1 if route == "out_of_scope" else 0
+        update: dict = {"route": route, "question": question, "documents": [], "off_topic_strikes": strikes}
         if repair:
             update["messages"] = repair
         return update
@@ -125,7 +128,13 @@ class AgentNodes:
         return await self._reply(system, state, self._answer)
 
     async def decline(self, state: AgentState) -> dict:
-        reason = "out_of_scope" if state.get("route") == "out_of_scope" else "no_info"
+        strikes = state.get("off_topic_strikes", 0)
+        if state.get("route") == "out_of_scope":
+            if strikes >= _STOP_STRIKES:  # khách cố tình lạc đề mãi: không tốn thêm lượt LLM
+                return {"messages": [AIMessage(content=guardrails.REPLY_STOP)]}
+            reason = "repeated_off_topic" if strikes >= _FIRM_STRIKES else "out_of_scope"
+        else:
+            reason = "no_info"
         return await self._reply(_fill(prompts.DECLINE_SYSTEM, reason=reason), state, self._answer)
 
     async def shop_agent(self, state: AgentState) -> dict:

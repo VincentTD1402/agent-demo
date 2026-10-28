@@ -8,7 +8,8 @@ from datetime import datetime, timedelta, timezone
 from psycopg import Connection, errors
 from psycopg_pool import ConnectionPool
 
-from app.shop.common import ShopError, ShopPolicy, iso, normalize_phone
+from app.shop.common import OrderNotFoundError, ShopError, ShopPolicy, iso, normalize_phone
+from app.shop.lookup_guard import LookupGuard
 
 # Lý do được hoàn tiền (đều do lỗi phía cửa hàng/vận chuyển). 'changed_mind' không thuộc diện hoàn tiền.
 ELIGIBLE_REASONS = {
@@ -21,17 +22,24 @@ _NOT_FOUND = "Không tìm thấy đơn hàng khớp mã đơn và số điện t
 
 
 class RefundService:
-    def __init__(self, pool: ConnectionPool, policy: ShopPolicy):
+    def __init__(self, pool: ConnectionPool, policy: ShopPolicy, guard: LookupGuard):
         self._pool = pool
+        self._guard = guard
         self._policy = policy
 
     def check(self, code: str, phone: str, reason_code: str, item_slugs: list[str] | None = None) -> dict:
+        return self._guard.verified(code, phone, lambda: self._check(code, phone, reason_code, item_slugs))
+
+    def _check(self, code: str, phone: str, reason_code: str, item_slugs: list[str] | None) -> dict:
         """Chỉ đánh giá điều kiện, không ghi gì."""
         with self._pool.connection() as conn:
             _, decision = self._evaluate(conn, code, phone, reason_code, item_slugs)
             return decision
 
     def request(self, code: str, phone: str, reason_code: str, details: str = "", item_slugs: list[str] | None = None) -> dict:
+        return self._guard.verified(code, phone, lambda: self._request(code, phone, reason_code, details, item_slugs))
+
+    def _request(self, code: str, phone: str, reason_code: str, details: str, item_slugs: list[str] | None) -> dict:
         with self._pool.connection() as conn:
             order_id, decision = self._evaluate(conn, code, phone, reason_code, item_slugs, lock=True)
             if not decision["eligible"]:
@@ -94,14 +102,14 @@ class RefundService:
         try:
             phone = normalize_phone(phone)
         except ShopError:
-            raise ShopError(_NOT_FOUND) from None
+            raise OrderNotFoundError(_NOT_FOUND) from None
         order = conn.execute(
             "SELECT id, status, delivered_at, total_vnd FROM orders WHERE code = %s AND phone = %s"
             + (" FOR UPDATE" if lock else ""),
             ((code or "").strip().upper(), phone),
         ).fetchone()
         if order is None:
-            raise ShopError(_NOT_FOUND)
+            raise OrderNotFoundError(_NOT_FOUND)
         order_id, status, delivered_at, total = order
 
         def no(reason: str, deadline: datetime | None = None) -> tuple[int, dict]:
