@@ -149,7 +149,7 @@ export function ChatWidget() {
         <div className="chat-body" aria-live="polite">
           <div className="msg bot">
             <Avatar />
-            <div className="bubble">Xin chào! Mình là trợ lý AI của ShopMobile. Mình có thể kiểm tra giá và tồn kho, thêm vào giỏ, đặt hàng, tra đơn, gửi yêu cầu hoàn tiền và giải đáp chính sách.</div>
+            <div className="bubble">Dạ em chào anh/chị ạ! Em là trợ lý của ShopMobile. Em có thể kiểm tra giá và tồn kho, thêm vào giỏ, đặt hàng, tra đơn, gửi yêu cầu hoàn tiền và giải đáp chính sách giúp mình nhé.</div>
           </div>
           {messages.length === 0 && (
             <div className="chips">
