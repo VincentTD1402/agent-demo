@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { deleteChat, streamChat } from "../api";
+import { useCart } from "../lib/cart";
 import { useChatBridge } from "../lib/chat-context";
 import { ChatMarkdown } from "./chat-markdown";
 import { Icon } from "./icons";
@@ -7,10 +8,11 @@ import { Icon } from "./icons";
 type Msg = { role: "user" | "bot"; text: string; at: number };
 
 const SUGGESTIONS = [
+  "iPhone 16 còn hàng không, giá bao nhiêu?",
+  "Thêm 1 củ sạc Anker 20W vào giỏ",
   "Tư vấn điện thoại dưới 15 triệu",
-  "So sánh iPhone 16 và Galaxy S25",
+  "Đơn SM000101 của tôi đang ở đâu? SĐT 0900000001",
   "Chính sách hoàn tiền thế nào?",
-  "Phí vận chuyển tính ra sao?",
 ];
 
 const clock = (t: number) => new Date(t).toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" });
@@ -21,6 +23,7 @@ function Avatar() {
 
 export function ChatWidget() {
   const { open, setOpen, outbox, clearOutbox } = useChatBridge();
+  const { refresh: refreshCart } = useCart();
   const [threadId, setThreadId] = useState<string>();
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
@@ -72,6 +75,8 @@ export function ChatWidget() {
           onDone: (done) => {
             setThreadId(done.thread_id);
             if (!started && done.reply) append(done.reply);
+            // Trợ lý có thể đã thêm/bớt món hoặc chốt đơn: tải lại giỏ để giao diện khớp
+            void refreshCart();
           },
         },
         controller.signal,
@@ -144,7 +149,7 @@ export function ChatWidget() {
         <div className="chat-body" aria-live="polite">
           <div className="msg bot">
             <Avatar />
-            <div className="bubble">Xin chào! Mình là trợ lý AI của ShopMobile. Mình có thể tư vấn sản phẩm, giá, khuyến mãi và giải đáp chính sách giao hàng, bảo hành, đổi trả, hoàn tiền.</div>
+            <div className="bubble">Xin chào! Mình là trợ lý AI của ShopMobile. Mình có thể kiểm tra giá và tồn kho, thêm vào giỏ, đặt hàng, tra đơn, gửi yêu cầu hoàn tiền và giải đáp chính sách.</div>
           </div>
           {messages.length === 0 && (
             <div className="chips">

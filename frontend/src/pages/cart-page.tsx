@@ -1,8 +1,8 @@
-import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Icon } from "../components/icons";
 import { ProductImage } from "../components/product-image";
 import { useCart } from "../lib/cart";
+import { useChatBridge } from "../lib/chat-context";
 import { vnd } from "../lib/format";
 
 const FREE_SHIP_FROM = 500_000;
@@ -10,7 +10,7 @@ const SHIP_FEE = 30_000;
 
 export default function CartPage() {
   const { lines, total, setQty, remove } = useCart();
-  const [notice, setNotice] = useState(false);
+  const { askAssistant } = useChatBridge();
 
   if (!lines.length) {
     return (
@@ -60,12 +60,12 @@ export default function CartPage() {
           <div><dt>Vận chuyển</dt><dd className="num">{ship === 0 ? "Miễn phí" : vnd(ship)}</dd></div>
         </dl>
         <div className="summary-total"><span>Tổng cộng</span><b className="price num big">{vnd(total + ship)}</b></div>
-        <button className="btn btn-primary" onClick={() => setNotice(true)}>ĐẶT HÀNG</button>
-        {notice && (
-          <p className="notice">
-            Thanh toán chưa được bật trong bản demo. Bạn có thể hỏi trợ lý AI về sản phẩm, giao hàng và chính sách đổi trả.
-          </p>
-        )}
+        <button className="btn btn-primary" onClick={() => askAssistant("Mình muốn đặt hàng các sản phẩm trong giỏ")}>
+          ĐẶT HÀNG VỚI TRỢ LÝ AI
+        </button>
+        <p className="notice">
+          Trợ lý AI sẽ hỏi thông tin giao hàng, tóm tắt đơn để bạn xác nhận rồi mới chốt đơn và thanh toán (trực tuyến mô phỏng hoặc COD).
+        </p>
         <Link to="/" className="link">Tiếp tục mua sắm</Link>
       </aside>
     </div>

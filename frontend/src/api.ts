@@ -1,11 +1,13 @@
 // Client gọi backend qua /api (Vite proxy ở dev, nginx ở production)
+import { getSessionId } from "./lib/session";
+
 export type ChatSource = { source: string; score: number };
 
 /** Sự kiện cuối của luồng /chat/stream */
 export type ChatDone = {
   thread_id: string;
   reply: string;
-  route: "chat" | "rag" | "out_of_scope";
+  route: "chat" | "rag" | "shop" | "out_of_scope";
   sources: ChatSource[];
 };
 
@@ -24,7 +26,8 @@ export async function streamChat(
   const res = await fetch("/api/chat/stream", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ message, thread_id: threadId }),
+    // session_id: cùng khoá giỏ hàng, để món trợ lý AI thêm vào giỏ hiện trên giao diện
+    body: JSON.stringify({ message, thread_id: threadId, session_id: getSessionId() }),
     signal,
   });
   if (!res.ok || !res.body) {
@@ -85,3 +88,77 @@ export const listProducts = (params: { q?: string; category?: string; limit?: nu
 };
 
 export const getProduct = (slug: string) => get<Product>(`/v1/products/${encodeURIComponent(slug)}`);
+
+// ---- Giỏ hàng (lưu phía server theo phiên; trợ lý AI dùng chung giỏ này) ----
+export type CartLineData = {
+  slug: string;
+  name: string;
+  category: string;
+  price_vnd: number;
+  image_url: string | null;
+  qty: number;
+  stock: number;
+  line_total_vnd: number;
+};
+
+export type CartView = {
+  lines: CartLineData[];
+  subtotal_vnd: number;
+  shipping_fee_vnd: number;
+  total_vnd: number;
+  out_of_stock: string[];
+};
+
+async function cartCall(path: string, method: string, body?: unknown): Promise<CartView> {
+  const res = await fetch(`/api/cart${path}`, {
+    method,
+    headers: { "Content-Type": "application/json", "X-Session-Id": getSessionId() },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!res.ok) {
+    // Lỗi nghiệp vụ (hết hàng, quá số lượng...) có thông điệp tiếng Việt trong `detail`
+    const detail = await res.json().then((j) => j.detail).catch(() => null);
+    throw new Error(typeof detail === "string" ? detail : `Lỗi ${res.status}`);
+  }
+  return res.json() as Promise<CartView>;
+}
+
+export const fetchCart = () => cartCall("", "GET");
+export const addCartItem = (slug: string, qty: number) => cartCall("/items", "POST", { slug, qty });
+export const setCartItemQty = (slug: string, qty: number) => cartCall(`/items/${encodeURIComponent(slug)}`, "PUT", { qty });
+export const removeCartItem = (slug: string) => cartCall(`/items/${encodeURIComponent(slug)}`, "DELETE");
+
+// ---- API nhân viên (header X-Staff-Key) ----
+export type PendingRefund = {
+  id: number;
+  order_code: string;
+  customer_name: string;
+  phone: string;
+  payment_method: string;
+  payment_status: string;
+  order_total_vnd: number;
+  reason_code: string;
+  details: string;
+  item_slugs: string[] | null;
+  amount_vnd: number;
+  created_at: string;
+};
+
+async function staffCall<T>(key: string, path: string, method = "GET", body?: unknown): Promise<T> {
+  const res = await fetch(`/api/staff${path}`, {
+    method,
+    headers: { "Content-Type": "application/json", "X-Staff-Key": key },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const detail = await res.json().then((j) => j.detail).catch(() => null);
+    throw new Error(typeof detail === "string" ? detail : `Lỗi ${res.status}`);
+  }
+  return res.json() as Promise<T>;
+}
+
+export const staffPendingRefunds = (key: string) => staffCall<PendingRefund[]>(key, "/refunds");
+export const staffDecideRefund = (key: string, id: number, approve: boolean, note: string) =>
+  staffCall<{ status: string }>(key, `/refunds/${id}/decision`, "POST", { approve, note });
+export const staffSetOrderStatus = (key: string, code: string, status: "shipped" | "delivered") =>
+  staffCall<{ code: string; status: string }>(key, `/orders/${encodeURIComponent(code)}/status`, "POST", { status });

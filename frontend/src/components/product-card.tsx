@@ -32,8 +32,8 @@ export function ProductCard({ p, showSold }: Props) {
 
   function buyNow(e: MouseEvent) {
     e.preventDefault();
-    add(p, 1, false); // không mở ngăn kéo vì chuyển thẳng sang trang giỏ hàng
-    nav("/gio-hang");
+    // Không mở ngăn kéo vì chuyển thẳng sang trang giỏ hàng; chờ server lưu xong để trang giỏ không hiện trống
+    void add(p, 1, false).then(() => nav("/gio-hang"));
   }
 
   function quickAdd(e: MouseEvent) {

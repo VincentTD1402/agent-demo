@@ -5,6 +5,7 @@ import { ChatBridgeProvider } from "./lib/chat-context";
 import CartPage from "./pages/cart-page";
 import HomePage from "./pages/home-page";
 import ProductPage from "./pages/product-page";
+import StaffPage from "./pages/staff-page";
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
               <Route index element={<HomePage />} />
               <Route path="san-pham/:slug" element={<ProductPage />} />
               <Route path="gio-hang" element={<CartPage />} />
+              <Route path="nhan-vien" element={<StaffPage />} />
               <Route path="*" element={<p className="error">Không tìm thấy trang.</p>} />
             </Route>
           </Routes>

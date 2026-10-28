@@ -87,3 +87,16 @@
   .footer-grid { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 480px) { .footer-grid { grid-template-columns: 1fr; } }
+
+/* Thông báo lỗi giỏ hàng */
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 70; background: var(--ink); color: #fff; padding: 12px 18px; border-radius: var(--radius-m); font-size: 14px; box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25); max-width: min(92vw, 460px); }
+
+/* Trang nhân viên (/nhan-vien) */
+.staff { display: grid; gap: 20px; }
+.staff section { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-m); padding: 18px; display: grid; gap: 12px; }
+.staff h1, .staff h2 { margin: 0; }
+.staff input { padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+.staff-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.refund-card { border: 1px solid var(--line); border-radius: var(--radius-s); padding: 12px 14px; display: grid; gap: 8px; }
+.refund-card dl { margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 4px 14px; font-size: 14px; }
+.refund-card dt { color: var(--ink-2); } .refund-card dd { margin: 0; }

@@ -105,6 +105,12 @@ function ScrollToTop() {
   return null;
 }
 
+// Thông báo ngắn khi thao tác giỏ hàng thất bại (hết hàng, quá số lượng...)
+function CartToast() {
+  const { notice } = useCart();
+  return notice ? <div className="toast" role="alert">{notice}</div> : null;
+}
+
 export function SiteLayout() {
   const { pathname, search } = useLocation();
   return (
@@ -119,6 +125,7 @@ export function SiteLayout() {
       <Footer />
       <CartDrawer />
       <ChatWidget />
+      <CartToast />
     </>
   );
 }

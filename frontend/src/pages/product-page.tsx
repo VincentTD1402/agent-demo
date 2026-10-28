@@ -95,7 +95,7 @@ export default function ProductPage() {
               <span className="num">{qty}</span>
               <button onClick={() => setQty((n) => Math.min(10, n + 1))} aria-label="Tăng số lượng"><Icon name="plus" size={16} /></button>
             </div>
-            <button className="btn btn-primary grow-btn" disabled={!inStock} onClick={() => { add(p, qty, false); nav("/gio-hang"); }}>
+            <button className="btn btn-primary grow-btn" disabled={!inStock} onClick={() => void add(p, qty, false).then(() => nav("/gio-hang"))}>
               MUA NGAY
             </button>
             <button className="btn btn-ghost" disabled={!inStock} onClick={() => add(p, qty)}>
